@@ -65,7 +65,7 @@ npm run setup
 npm run dev
 ```
 
-Open the local address printed in your terminal—normally **http://localhost:5173**. Access to this private repository is required to clone it.
+Open the local address printed in your terminal—normally **http://localhost:5173**. The repository is public, so reviewers can browse and clone it without an invitation.
 
 Already have the project? Stop the development server, then run:
 
