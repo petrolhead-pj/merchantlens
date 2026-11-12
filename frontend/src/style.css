@@ -1853,3 +1853,5 @@ h1{font-size:clamp(27px,2.8vw,43px);letter-spacing:-1.8px;color:#f2f7ff}
 @media(min-width:1600px){.graph-area{height:590px}.investigation-grid{grid-template-columns:minmax(0,1fr) 340px}}
 @media(max-width:1100px){.investigation-grid{grid-template-columns:1fr}.graph-area{height:500px}}
 @media(max-width:650px){.graph-area{height:410px}h1{font-size:27px}.sidebar{width:68px}}
+
+.camera-presets{position:absolute;right:14px;top:14px;display:flex;gap:4px;border:1px solid #284773;background:#071327d9;padding:4px;border-radius:7px}.camera-presets button{font-size:9px;padding:6px 8px;border-radius:4px;color:#8fb0d5}.camera-presets button.active,.camera-presets button[aria-pressed=true]{color:#bfe2ff;background:#174477}.camera-presets button:hover{background:#163456}

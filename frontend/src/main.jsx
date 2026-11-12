@@ -192,7 +192,8 @@ function WebGLGraph({
   focus,
   filter,
 }) {
-  const s = scenarios[scenario];
+  const [cameraMode,setCameraMode]=useState("perspective");
+  const [autoOrbit,setAutoOrbit]=useState(false);
   const nodes = baseNodes.map((n) =>
     n.id === "other"
       ? {
@@ -217,7 +218,7 @@ function WebGLGraph({
   );
   const kinds = Object.fromEntries(nodes.map((n) => [n.id, n.type]));
   return (
-    <Canvas
+    <Canvas key={focus}
       camera={{ position: [1, 6, 16], fov: 48 }}
       dpr={[1, 1.7]}
     >
@@ -228,7 +229,8 @@ function WebGLGraph({
       <gridHelper args={[42,42,"#134b8d","#0a1b37"]} position={[0,-4.3,0]}/>
       <mesh rotation={[-Math.PI/2,0,0]} position={[0,-4.32,0]}><planeGeometry args={[50,50]}/><meshStandardMaterial color="#040918" metalness={0.65} roughness={0.36}/></mesh>
       <Suspense fallback={null}>
-        <GraphCamera />
+        <GraphCamera mode={cameraMode} />
+        <Html fullscreen style={{pointerEvents:'none'}} zIndexRange={[10,9]}><div className="camera-presets" style={{pointerEvents:'auto'}}><button onClick={()=>setCameraMode('perspective')} className={cameraMode==='perspective'?'active':''}>Perspective</button><button onClick={()=>setCameraMode('top')} className={cameraMode==='top'?'active':''}>Front view</button><button onClick={()=>setAutoOrbit(v=>!v)} aria-pressed={autoOrbit}>{autoOrbit?'Stop orbit':'Auto orbit'}</button></div></Html>
         <group position={[-0.1, 0, 0]}>
           {edgeDefs
             .filter(
@@ -252,6 +254,8 @@ function WebGLGraph({
         </group>
         <OrbitControls
           key={focus}
+          autoRotate={autoOrbit && playing}
+          autoRotateSpeed={0.45}
           enableRotate={true}
           enablePan
           enableZoom
@@ -265,9 +269,9 @@ function WebGLGraph({
     </Canvas>
   );
 }
-function GraphCamera() {
+function GraphCamera({mode}) {
  const {camera,size}=useThree();
- useEffect(()=>{camera.position.set(1,6,size.width<650?22:17);camera.lookAt(0,0,0);camera.updateProjectionMatrix();},[camera,size.width]);
+ useEffect(()=>{camera.position.set(mode==="top"?0:1,mode==="top"?0:6,size.width<650?22:17);camera.lookAt(0,0,0);camera.updateProjectionMatrix();},[camera,size.width,mode]);
  return null;
 }
 class GraphBoundary extends React.Component {
