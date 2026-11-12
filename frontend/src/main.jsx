@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import * as THREE from "three";
 import "./style.css";
-import MoneyTrail from "./MoneyTrail";
+import MoneyTrail from "./MoneyTrail.jsx";
 const money = (n) => "₹" + n.toLocaleString("en-IN");
 const palette = {
   safe: "#42d7ae",

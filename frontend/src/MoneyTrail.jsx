@@ -1,5 +1,5 @@
 import React,{useState} from 'react';
-import {accounts,transfers,trace,balance} from './moneyTrail';
+import {accounts,transfers,trace,balance} from './money-trail-data.js';
 const money=n=>'₹'+(n/100).toLocaleString('en-IN');
 export default function MoneyTrail({bank,scenario,onSelect,onReview}){
  const [start,setStart]=useState('bakery'),[until,setUntil]=useState(30),[search,setSearch]=useState('');
