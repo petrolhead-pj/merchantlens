@@ -7,15 +7,24 @@ MerchantLens explores whether observed payment activity matches a merchant's dec
 Requires Node.js 22 or newer.
 
 ```bash
-npm ci
+npm run setup
 npm run dev
 ```
 
 Build with `npm run build`. Preview the production build with `npm run preview`.
 
+## Project layout
+
+- `frontend/` — React, Vite and the 3D investigation interface.
+- `backend/` — tested read-only Node.js demo API scaffold.
+- Run `npm run backend` separately for API metadata on port 3001. The frontend remains self-contained; no live integrations are enabled.
+- Run `npm test` to validate the demo API.
+
 ## Implemented interactions
 
-- Clickable transaction network with animated payment flows, pan, zoom and focus mode.
+- Perspective 3D transaction network with dimensional nodes, orbital rings, curved animated payment paths, star field and ground grid.
+- Drag to orbit, right-drag to pan, scroll to zoom; select nodes to inspect evidence.
+- Neon-blue investigation workspace with a larger graph viewport and focus mode.
 - React Three Fiber / Three.js WebGL renderer with automatic SVG compatibility fallback.
 - Three deterministic synthetic scenarios.
 - Entity inspection, evidence record modal and event timeline.
