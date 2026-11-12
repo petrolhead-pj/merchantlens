@@ -58,24 +58,36 @@ IAM roles, KMS encryption, tokenized identifiers and retention rules are planned
 
 ## Get started
 
-You need **Node.js 22 or newer**, npm and Git. No cloud credentials or model keys are required.
+### 1. Install the prerequisites
+
+Install **Node.js 22 or newer** (npm is included) and **Git**, then open Terminal or PowerShell.
+
+### 2. Download the project
 
 ```bash
 git clone https://github.com/petrolhead-pj/merchantlens.git
 cd merchantlens
-npm run setup
-npm run dev
 ```
 
-Open the local address printed in your terminal—normally **http://localhost:5173**. The repository is public, so reviewers can browse and clone it without an invitation.
-
-Already have the project? Stop the development server, then run:
+### 3. Install dependencies
 
 ```bash
-git pull origin main
 npm run setup
+```
+
+Wait for the installation to finish.
+
+### 4. Start the app
+
+```bash
 npm run dev
 ```
+
+Open the **Local** URL shown in the terminal—usually **http://localhost:5173**.
+
+You're ready to explore MerchantLens. Keep the terminal running while using the app; press **Ctrl+C** to stop it.
+
+> The frontend runs on its own. You don't need to start the backend or configure AWS credentials or API keys.
 
 ## Explore your first case
 
