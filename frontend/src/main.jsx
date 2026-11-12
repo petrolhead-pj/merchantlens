@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import * as THREE from "three";
 import "./style.css";
+import MoneyTrail from "./MoneyTrail";
 const money = (n) => "₹" + n.toLocaleString("en-IN");
 const palette = {
   safe: "#42d7ae",
@@ -503,71 +504,7 @@ function SVGGraph({
     </svg>
   );
 }
-const steps = [
-  {
-    time: 0,
-    title: "The merchant behind the payments",
-    caption:
-      "Authentic onboarding and normal payments can conceal a different business purpose.",
-    scenario: "mixed",
-    select: "bakery",
-    view: "investigation",
-  },
-  {
-    time: 16,
-    title: "Two identical payments, different evidence",
-    caption:
-      "Open the alternate checkout. A verified session link connects this activity to the merchant.",
-    scenario: "mixed",
-    select: "other",
-    view: "investigation",
-  },
-  {
-    time: 35,
-    title: "Scope the case to linked activity",
-    caption:
-      "Preview a targeted checkout action and the wider impact of restricting the whole merchant.",
-    scenario: "mixed",
-    select: "other",
-    view: "impact",
-  },
-  {
-    time: 54,
-    title: "Protect a legitimate seasonal business",
-    caption:
-      "The same pipeline accepts a sales surge when orders and fulfilment explain the change.",
-    scenario: "seasonal",
-    select: "orders",
-    view: "investigation",
-  },
-  {
-    time: 73,
-    title: "Make missing evidence visible",
-    caption:
-      "When purpose evidence is missing, request clarification. Keep the conclusion unresolved.",
-    scenario: "unknown",
-    select: "other",
-    view: "investigation",
-  },
-  {
-    time: 91,
-    title: "A reviewer owns the decision",
-    caption:
-      "Request evidence, inspect the merchant response, then record a reasoned outcome.",
-    scenario: "unknown",
-    select: "other",
-    view: "review",
-  },
-  {
-    time: 108,
-    title: "A concrete path to deployment",
-    caption:
-      "The prototype replays synthetic events. The proposed AWS pipeline is shown with explicit integration boundaries.",
-    scenario: "mixed",
-    select: "bakery",
-    view: "architecture",
-  },
-];
+function savedCase(id){try{return JSON.parse(localStorage.getItem('merchantlens-case-'+id)||'{}');}catch{return {};}}
 function App() {
   const [scenario, setScenario] = useState("mixed"),
     [selected, setSelected] = useState("bakery"),
@@ -580,19 +517,17 @@ function App() {
     [query, setQuery] = useState(""),
     [toast, setToast] = useState(""),
     [impact, setImpact] = useState("checkout"),
-    [requested, setRequested] = useState(false),
-    [response, setResponse] = useState(false),
-    [outcome, setOutcome] = useState(""),
-    [reason, setReason] = useState(""),
-    [audit, setAudit] = useState([]),
-    [guide, setGuide] = useState(false),
-    [seconds, setSeconds] = useState(0),
-    [guidePlay, setGuidePlay] = useState(true),
+    [requested, setRequested] = useState(()=>savedCase("mixed").requested ?? false),
+    [response, setResponse] = useState(()=>savedCase("mixed").response ?? false),
+    [outcome, setOutcome] = useState(()=>savedCase("mixed").outcome ?? ""),
+    [reason, setReason] = useState(()=>savedCase("mixed").reason ?? ""),
+    [audit, setAudit] = useState(()=>{try{return JSON.parse(localStorage.getItem("merchantlens-audit")||"[]");}catch{return [];}}),
     [modal, setModal] = useState(null);
+  useEffect(()=>{try{localStorage.setItem('merchantlens-audit',JSON.stringify(audit));}catch{}},[audit]);
+  useEffect(()=>{try{localStorage.setItem('merchantlens-case-'+scenario,JSON.stringify({requested,response,outcome,reason}));}catch{}},[scenario,requested,response,outcome,reason]);
   const s = scenarios[scenario];
   const effectiveType = !evidence ? "unknown" : s.color;
   const unresolved = scenario === "unknown" || !evidence;
-  const chapter = steps.reduce((a, b) => (seconds >= b.time ? b : a), steps[0]);
   function notify(t) {
     setToast(t);
     setTimeout(() => setToast(""), 3500);
@@ -601,50 +536,16 @@ function App() {
     setScenario(v);
     setSelected("bakery");
     setEvidence(true);
-    setRequested(false);
-    setResponse(false);
-    setOutcome("");
-    setReason("");
+    const previous=savedCase(v);
+    setRequested(previous.requested??false);
+    setResponse(previous.response??false);
+    setOutcome(previous.outcome??"");
+    setReason(previous.reason??"");
     setView("investigation");
-  }
-  useEffect(() => {
-    if (!guide || !guidePlay) return;
-    const id = setInterval(
-      () =>
-        setSeconds((t) => {
-          if (t >= 119) {
-            setGuidePlay(false);
-            return 120;
-          }
-          return t + 1;
-        }),
-      1000,
-    );
-    return () => clearInterval(id);
-  }, [guide, guidePlay]);
-  useEffect(() => {
-    if (guide) {
-      setScenario(chapter.scenario);
-      setSelected(chapter.select);
-      setView(chapter.view);
-      setEvidence(true);
-    }
-  }, [chapter.time, guide]);
-  function startGuide() {
-    setBank(true);
-    setImpact("checkout");
-    setAudit([]);
-    setReason("");
-    setSeconds(0);
-    setGuide(true);
-    setGuidePlay(true);
-    setRequested(false);
-    setResponse(false);
-    setOutcome("");
   }
   function log(text) {
     setAudit((a) => [
-      { text, scenario, reason, time: new Date().toLocaleTimeString("en-GB") },
+      { text, scenario, reason, time: new Date().toLocaleString("en-GB") },
       ...a,
     ]);
     notify(text);
@@ -676,7 +577,7 @@ function App() {
   const selectedName =
     baseNodes.find((n) => n.id === selected)?.name || "Sunrise Bakery";
   return (
-    <div className={`app ${guide ? "presentation" : ""}`}>
+    <div className="app">
       <aside className="sidebar">
         <a
           className="brand"
@@ -762,47 +663,9 @@ function App() {
             >
               <Download size={17} />
             </button>
-            <button className="presentation-btn" onClick={startGuide}>
-              <Play size={14} fill="currentColor" /> Present demo{" "}
-              <span>2:00</span>
-            </button>
+
           </div>
         </header>
-        {guide && (
-          <section className="guide">
-            <div>
-              <span className="guide-label">
-                GUIDED DEMO · {steps.indexOf(chapter) + 1} / 7
-              </span>
-              <strong>{chapter.title}</strong>
-              <small>{chapter.caption}</small>
-            </div>
-            <div className="guide-controls">
-              <button onClick={() => setGuidePlay(!guidePlay)}>
-                {guidePlay ? <Pause size={16} /> : <Play size={16} />}
-              </button>
-              <span>
-                {Math.floor(seconds / 60)}:
-                {String(seconds % 60).padStart(2, "0")} / 2:00
-              </span>
-              <button
-                onClick={() =>
-                  setSeconds(steps.find((x) => x.time > seconds)?.time || 120)
-                }
-                title="Next chapter"
-              >
-                <ChevronRight size={18} />
-              </button>
-              <button onClick={() => setGuide(false)} title="Exit demo">
-                <X size={18} />
-              </button>
-            </div>
-            <div
-              className="guide-progress"
-              style={{ width: (seconds / 120) * 100 + "%" }}
-            />
-          </section>
-        )}
         <div className="content">
           <div className="page-heading">
             <div className="eyebrow">FOLLOW THE MONEY. VERIFY THE PURPOSE.</div>
@@ -889,6 +752,7 @@ function App() {
           </div>
           {view === "investigation" && (
             <>
+              <MoneyTrail bank={bank} scenario={scenario} onSelect={id=>{setSelected(id);document.querySelector('.graph-panel')?.scrollIntoView({behavior:'smooth',block:'center'});}} onReview={()=>setView('review')}/>
               <div className="investigation-grid">
                 <section className="graph-panel">
                   <div className="panel-heading">
