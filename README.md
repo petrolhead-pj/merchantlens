@@ -33,12 +33,13 @@ Build with `npm run build`. Preview the production build with `npm run preview`.
 - Checkout versus whole-merchant intervention comparison.
 - Targeted clarification request and simulated merchant response.
 - Reviewer reasoning, clear/escalate decisions and case-history export.
-- Guided 120-second presentation mode with seven chapters and playback controls.
+- Untimed money trail with account selection, event-time filtering, recipient inspection, search and JSON export.
+- Per-scenario review notes and decisions retained in browser local storage.
 - Proposed AWS architecture view and implementation-boundary disclosure.
 
 ## Demonstration boundaries
 
-All payments, identities, evidence and scores are synthetic fixtures. The UI does not connect to live payments, AWS, banks or merchant messaging. XGBoost and CatBoost scores are illustrative fixture values, not trained model inference. Review decisions live in React state and reset on reload. Export a case to retain its current record. Downstream transfers show observable sequence only, without proving allocation of commingled funds. No automatic payment restriction is executed.
+All payments, identities, evidence and scores are synthetic fixtures. The UI does not connect to live payments, AWS, banks or merchant messaging. XGBoost and CatBoost scores are illustrative fixture values, not trained model inference. Review decisions and history are saved in this browser’s local storage. They are not synced across devices or secured by backend authentication. Export a case for a portable record. Downstream transfers show observable sequence only, without proving allocation of commingled funds. No automatic payment restriction is executed.
 
 ## Technology
 
@@ -48,7 +49,7 @@ The architecture page describes a proposed production deployment using API Gatew
 
 ## Recording
 
-Use a 1920 × 1080 desktop viewport if possible. Open the app, select **Present demo**, and follow `DEMO_SCRIPT.md`. Pause or advance chapters as needed. Record the actual interactions and disclose synthetic data. No accuracy or selection guarantee is claimed.
+Use a 1920 × 1080 desktop viewport if possible. Use the money trail and graph at your own pace. `DEMO_SCRIPT.md` contains an untimed walkthrough; no countdown or automatic navigation runs. Record the actual interactions and disclose synthetic data. No accuracy or selection guarantee is claimed.
 
 ## Authorship
 
