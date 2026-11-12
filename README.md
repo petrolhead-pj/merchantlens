@@ -7,7 +7,7 @@ An investigation workspace that connects merchant payments, downstream transfers
 
 **Interactive 3D graph · Money trails · Evidence-led review**
 
-[Get started](#get-started) · [Explore a case](#explore-your-first-case) · [Technical note](docs/SUPPORTING_NOTE.md) · [Video walkthrough](DEMO_SCRIPT.md)
+[Get started](#get-started) · [Architecture](#aws-architecture) · [Feasibility](#feasibility-and-pilot-plan) · [Technical note](docs/SUPPORTING_NOTE.md) · [Video walkthrough](DEMO_SCRIPT.md)
 
 </div>
 
@@ -35,24 +35,26 @@ MerchantLens brings those relationships into one workspace. It also considers th
 | **Impact preview** | Compare a checkout-level response with the scope of a whole-merchant response. |
 | **Case exports** | Save scoped evidence, reasoning and history as JSON or printable HTML. |
 
-### Follow a transfer—not just a risk score
+## AWS architecture
 
-The sample money trail contains these observed movements:
+[![MerchantLens proposed AWS architecture](docs/images/aws-architecture.png)](https://www.canva.com/design/DAHatghldpQ/magWQTHUHb5z6UFntpuEvw/edit)
 
-```mermaid
-flowchart TD
-    B["Sunrise Bakery"]
-    S["Flour supplier"]
-    R["Receiver R"]
-    Z["Account Z"]
-    B -->|"₹36,000 · 10:10"| S
-    B -->|"₹18,000 · 10:18"| R
-    R -->|"₹15,000 · 10:24"| Z
-```
+*From slide 5 of our presentation. Click to open the full-size Canva deck. This is the proposed deployment; the current app runs locally.*
 
-The supplier payment has a matching invoice. Receiver R forwards ₹15,000 six minutes after receiving ₹18,000, but the purpose remains unresolved. Account Z is the last observed receiver.
+### How the system would work
 
-**A sequence is not proof of purpose.** Money mixes with an account's existing balance; these transfers do not establish which customer's payment funded a later transaction.
+| Stage | Services and responsibility | Purpose |
+| :--- | :--- | :--- |
+| **Receive** | API Gateway and Lambda validate authorized provider events and deduplicate IDs. | Keep malformed or repeated events out of the assessment. |
+| **Buffer** | Amazon SQS provides buffering, retries and dead-letter handling. | Absorb bursts and isolate worker failures from payment approval. |
+| **Build context** | Lambda feature workers use Neptune for typed, timestamped relationships and DynamoDB for merchant state and baselines. | Connect payment behavior to business context and observed relationships. |
+| **Assess** | Risk workers combine rules and baselines with candidate XGBoost/CatBoost models once validated. | Produce reasons, confidence, evidence coverage and a versioned assessment. |
+| **Review** | Analysts inspect evidence, request clarification and choose a scoped outcome. S3 holds evidence and audit exports. | Keep decisions tied to the merchant, session and event interval. |
+| **Reconcile** | EventBridge Scheduler triggers refresh and reconciliation; CloudWatch monitors processing lag and failures. | Handle late data and make operational problems visible. |
+
+IAM roles, KMS encryption, tokenized identifiers and retention rules are planned production controls. Model drift monitoring and evidence-integrity verification also require implementation.
+
+**Payment authorization stays separate.** Monitoring is asynchronous. A model score does not execute a restriction; any production intervention needs an authorized risk owner and provider-supported scope.
 
 ## Get started
 
@@ -156,15 +158,55 @@ Run these from the repository root.
 
 The frontend works independently of the backend scaffold. The API exposes `/api/health`, `/api/scenarios` and `/api/capabilities`.
 
-## What's implemented—and what's next
+## Feasibility and pilot plan
 
-**Available today:** interactive investigation, sample account-level tracing, evidence coverage controls, scenario-specific review safeguards, local persistence and case exports.
+**Intended user:** a payment-provider risk analyst investigating whether current merchant activity matches the declared business.
 
-**Proposed production direction:** authorized data integrations through API Gateway and Lambda; queued event processing; Neptune for graph relationships; DynamoDB for case state; S3 for evidence; and EventBridge Scheduler for reconciliation and baseline refreshes.
+Begin with authorized historical replay, then run a shadow pilot alongside existing systems. This lets analysts assess value before any payment decision is affected.
 
-XGBoost and CatBoost are candidate models for later evaluation. The current scores are illustrative values, not trained predictions. A pilot also needs authenticated access, trustworthy evidence mapping, secure shared storage, validated labels and measured performance.
+### Why this is practical
 
-See the [technical and validation note](docs/SUPPORTING_NOTE.md) for implementation boundaries and manual acceptance checks.
+| Design choice | Benefit | Dependency or trade-off |
+| :--- | :--- | :--- |
+| **Start with rules and baselines** | Explainable behavior before enough reviewed labels exist for ML. | Thresholds and peer groups need validation; volume alone is not a verdict. |
+| **Bound graph exploration** | Time windows, hop limits and cycle stopping keep the investigation focused. | The prototype has traversal bounds; production needs query budgets and load testing. |
+| **Keep missing evidence explicit** | Request clarification instead of inventing the recipient's activity. | Coverage depends on authorized feeds and reliable merchant/session mapping. |
+| **Separate ingestion and analysis** | Queue-based processing supports burst handling and retries. | Idempotency, ordering and late-event replay need production verification. |
+| **Compare intervention scope** | Show the legitimate activity potentially affected by a broad response. | Actual restriction granularity depends on the payment provider. |
+| **Track cost per reviewed case** | Connect infrastructure and analyst effort to business value. | No production cost, throughput or savings benchmark is established yet. |
+
+### Data required
+
+The basic event record needs a payment ID, merchant ID, timestamp, amount and session mapping. Merchant profiles, checkout observations, orders and fulfilment records add purpose evidence. Downstream tracing additionally requires authorized transfer visibility.
+
+There is no universal minimum history or training-set size. Establish baseline coverage by merchant segment, assess label quality, and evaluate on separate merchants and later time periods. Exclude graph edges and evidence unavailable at the scoring cutoff.
+
+### Delivery milestones
+
+| Phase | Deliverable | Gate to progress |
+| :--- | :--- | :--- |
+| **Local prototype** | Interactive graph, money trails, review gates and case exports. | Reproducible setup, automated tests and device-level manual checks. |
+| **Controlled evaluation** | Historical replay; compare rules with candidate models. | Reliable mappings, adjudicated labels, no future-data leakage and equal analyst capacity. |
+| **Authorized shadow pilot** | Cases delivered to partner analysts without automated intervention. | Access controls, provenance, retention, replay correctness and operational monitoring. |
+| **Production consideration** | Shared authenticated case storage and provider-approved response integration. | Measured quality, genuine-merchant impact, reliability and operating cost. |
+
+Measure **verified mismatch precision/recall, unnecessary interventions, analyst review time, evidence coverage/freshness and cost per reviewed merchant**. Compare systems at the same review budget. These are evaluation criteria, not claimed results.
+
+## Implementation status and validation
+
+| Available today | Further implementation required |
+| :--- | :--- |
+| Interactive 3D graph and SVG fallback | Live payment, checkout and bank integrations |
+| Time-filtered account tracing and balance reconciliation | AWS deployment and production event workers |
+| Scenario-specific review gates and browser-local history | Authenticated shared case storage |
+| JSON and printable HTML reports | Signed evidence manifests and verified provenance |
+| Read-only metadata API and automated tests | Trained, calibrated XGBoost/CatBoost inference |
+
+Tests cover temporal traversal, cycles, hop bounds, balance reconciliation, review gates, stale outcomes, scenario isolation, HTML escaping and the read-only API. Run `npm test` and `npm run build`; a successful build does not replace checking the interface on the recording device.
+
+The data and displayed scores are synthetic fixtures. Account-level sequence cannot establish which customer's payment funded a later transfer through a mixed balance. Unknown recipients remain unresolved without supporting evidence.
+
+See the [technical and validation note](docs/SUPPORTING_NOTE.md) for acceptance checks, export semantics and pilot prerequisites.
 
 <details>
 <summary><strong>Troubleshooting</strong></summary>
