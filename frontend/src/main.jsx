@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Html, Line, OrbitControls } from "@react-three/drei";
+import { Html, Line, OrbitControls, Stars, Float, MeshDistortMaterial } from "@react-three/drei";
 import {
   Activity,
   ArrowDownLeft,
@@ -37,13 +37,14 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import * as THREE from "three";
 import "./style.css";
 const money = (n) => "₹" + n.toLocaleString("en-IN");
 const palette = {
   safe: "#42d7ae",
   risk: "#ff776c",
   unknown: "#e7b767",
-  neutral: "#7393ab",
+  neutral: "#389dff",
 };
 const scenarios = {
   mixed: {
@@ -88,7 +89,7 @@ const baseNodes = [
     id: "customers",
     name: "Customers",
     sub: "Verified payer tokens",
-    pos: [-5.4, 1.2, 0],
+    pos: [-5.4, 1.2, 1.3],
     type: "neutral",
     kind: "customers",
   },
@@ -96,7 +97,7 @@ const baseNodes = [
     id: "cake",
     name: "Cake checkout",
     sub: "CKT-CAKE-01",
-    pos: [-2.5, 2.1, 0],
+    pos: [-2.5, 2.1, -1.1],
     type: "safe",
     kind: "checkout",
   },
@@ -104,7 +105,7 @@ const baseNodes = [
     id: "other",
     name: "Alternate checkout",
     sub: "CKT-ALT-09",
-    pos: [-2.5, -1.5, 0],
+    pos: [-2.5, -1.5, 2.1],
     type: "risk",
     kind: "checkout",
   },
@@ -120,7 +121,7 @@ const baseNodes = [
     id: "orders",
     name: "Cake orders",
     sub: "Order + delivery matched",
-    pos: [0.4, 3.05, 0],
+    pos: [0.4, 3.05, -2.6],
     type: "safe",
     kind: "evidence",
   },
@@ -128,7 +129,7 @@ const baseNodes = [
     id: "supplier",
     name: "Flour supplier",
     sub: "Verified operating expense",
-    pos: [4, 2, 0],
+    pos: [4, 2, -1.7],
     type: "safe",
     kind: "receiver",
   },
@@ -136,7 +137,7 @@ const baseNodes = [
     id: "receiver",
     name: "Receiver R",
     sub: "Owner unverified",
-    pos: [4, -1.5, 0],
+    pos: [4, -1.5, 2.3],
     type: "unknown",
     kind: "receiver",
   },
@@ -144,7 +145,7 @@ const baseNodes = [
     id: "endpoint",
     name: "Account Z",
     sub: "Last observed account",
-    pos: [6, -3.1, 0],
+    pos: [6, -3.1, 0.5],
     type: "unknown",
     kind: "receiver",
   },
@@ -160,33 +161,26 @@ const edgeDefs = [
   ["receiver", "endpoint", "unknown"],
 ];
 function FlowEdge({ a, b, color, active }) {
-  const dot = useRef();
-  const offset = useRef(Math.random());
-  useFrame(({ clock }) => {
-    if (dot.current && active) {
-      const t = (clock.elapsedTime * 0.19 + offset.current) % 1;
-      dot.current.position.set(
-        a[0] + (b[0] - a[0]) * t,
-        a[1] + (b[1] - a[1]) * t,
-        0.05,
-      );
-    }
-  });
-  return (
-    <>
-      <Line
-        points={[a, b]}
-        color={color}
-        lineWidth={1.2}
-        transparent
-        opacity={0.33}
-      />
-      <mesh ref={dot} visible={active}>
-        <sphereGeometry args={[0.045, 10, 10]} />
-        <meshBasicMaterial color={color} />
-      </mesh>
-    </>
-  );
+  const particles = useRef([]);
+  const curve = React.useMemo(() => new THREE.QuadraticBezierCurve3(new THREE.Vector3(...a), new THREE.Vector3((a[0]+b[0])/2, (a[1]+b[1])/2+0.65, (a[2]+b[2])/2+0.9),new THREE.Vector3(...b)),[a,b]);
+  const points = React.useMemo(()=>curve.getPoints(48),[curve]);
+  useFrame(({clock})=>{if(active) particles.current.forEach((mesh,i)=>{if(mesh)mesh.position.copy(curve.getPoint((clock.elapsedTime*0.14+i/3)%1));});});
+  return <><Line points={points} color={color} lineWidth={1.5} transparent opacity={0.58}/>{[0,1,2].map(i=><mesh key={i} ref={el=>particles.current[i]=el} visible={active}><sphereGeometry args={[0.055,12,12]}/><meshBasicMaterial color={color} toneMapped={false}/></mesh>)}</>;
+}
+function SpatialNode({node:n,selected,onSelect,dim,playing}) {
+ const spin=useRef();
+ useFrame((_,dt)=>{if(spin.current&&playing)spin.current.rotation.z+=dt*0.22;});
+ const c=palette[n.type], radius=n.id==='bakery'?0.57:0.32;
+ return <group position={n.pos}>
+  <Float speed={playing?1.4:0} rotationIntensity={0.12} floatIntensity={0.25}>
+   <mesh onClick={e=>{e.stopPropagation();onSelect(n.id);}}>
+    <icosahedronGeometry args={[radius,3]}/><MeshDistortMaterial color={c} emissive={c} emissiveIntensity={selected?1.2:0.45} metalness={0.7} roughness={0.19} distort={0.13} speed={playing?1.6:0} transparent opacity={dim?0.2:1}/>
+   </mesh>
+   <group ref={spin}><mesh rotation={[Math.PI/2.6,0.3,0]}><torusGeometry args={[radius*1.55,0.018,8,80]}/><meshBasicMaterial color={c} transparent opacity={dim?0.1:0.65}/></mesh>
+   {selected&&<mesh rotation={[0.3,Math.PI/2,0]}><torusGeometry args={[radius*1.85,0.012,8,80]}/><meshBasicMaterial color="#ffffff" transparent opacity={0.5}/></mesh>}</group>
+  </Float>
+  <Html position={[0,-radius-0.4,0]} center zIndexRange={[5,0]}><button aria-label={'Inspect '+n.name} onClick={()=>onSelect(n.id)} className={'spatial-label '+(selected?'active':'')+(dim?' dim':'')} style={{'--node-color':c}}><strong>{n.name}</strong><small>{n.sub}</small></button></Html>
+ </group>;
 }
 function WebGLGraph({
   scenario,
@@ -224,11 +218,15 @@ function WebGLGraph({
   const kinds = Object.fromEntries(nodes.map((n) => [n.id, n.type]));
   return (
     <Canvas
-      orthographic
-      camera={{ position: [0, 0, 20], zoom: 49 }}
+      camera={{ position: [1, 6, 16], fov: 48 }}
       dpr={[1, 1.7]}
     >
-      <color attach="background" args={["#0c141d"]} />
+      <color attach="background" args={["#040a1b"]} />
+      <fog attach="fog" args={["#040a1b",25,65]} />
+      <ambientLight intensity={0.7}/><pointLight position={[0,6,6]} intensity={55} color="#3b9bff"/><pointLight position={[-6,-2,3]} intensity={20} color="#9a75ff"/>
+      <Stars radius={45} depth={25} count={1400} factor={2.2} saturation={0.4} fade speed={playing?0.3:0}/>
+      <gridHelper args={[42,42,"#134b8d","#0a1b37"]} position={[0,-4.3,0]}/>
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,-4.32,0]}><planeGeometry args={[50,50]}/><meshStandardMaterial color="#040918" metalness={0.65} roughness={0.36}/></mesh>
       <Suspense fallback={null}>
         <GraphCamera />
         <group position={[-0.1, 0, 0]}>
@@ -250,53 +248,27 @@ function WebGLGraph({
                 />
               );
             })}
-          {visible.map((n) => (
-            <Html key={n.id} position={n.pos} center zIndexRange={[5, 0]}>
-              <button
-                aria-label={"Inspect " + n.name}
-                onClick={() => onSelect(n.id)}
-                className={`graph-node ${selected === n.id ? "selected" : ""} ${n.id === "bakery" ? "merchant-node" : ""} ${filter !== "all" && n.type !== filter ? "dim" : ""}`}
-                style={{ "--node-color": palette[n.type] }}
-              >
-                <span className="node-symbol">
-                  {n.kind === "merchant" ? (
-                    <Store size={23} />
-                  ) : n.kind === "customers" ? (
-                    <Users size={21} />
-                  ) : n.kind === "evidence" ? (
-                    <FileText size={20} />
-                  ) : n.kind === "receiver" ? (
-                    <ArrowUpRight size={20} />
-                  ) : (
-                    <Link2 size={20} />
-                  )}
-                </span>
-                <strong>{n.name}</strong>
-                <small>{n.sub}</small>
-                {n.id === "bakery" && <em>Declared · Bakery</em>}
-              </button>
-            </Html>
-          ))}
+          {visible.map(n=><SpatialNode key={n.id} node={n} selected={selected===n.id} onSelect={onSelect} playing={playing} dim={filter!=="all"&&n.type!==filter}/>)}
         </group>
         <OrbitControls
           key={focus}
-          enableRotate={false}
+          enableRotate={true}
           enablePan
           enableZoom
-          minZoom={30}
-          maxZoom={80}
+          minDistance={7}
+          maxDistance={30}
+          maxPolarAngle={Math.PI*0.82}
+          enableDamping
+          dampingFactor={0.07}
         />
       </Suspense>
     </Canvas>
   );
 }
 function GraphCamera() {
-  const { camera, size } = useThree();
-  useEffect(() => {
-    camera.zoom = Math.min((size.width - 130) / 12.5, (size.height - 110) / 7);
-    camera.updateProjectionMatrix();
-  }, [camera, size]);
-  return null;
+ const {camera,size}=useThree();
+ useEffect(()=>{camera.position.set(1,6,size.width<650?22:17);camera.lookAt(0,0,0);camera.updateProjectionMatrix();},[camera,size.width]);
+ return null;
 }
 class GraphBoundary extends React.Component {
   constructor(p) {
@@ -771,7 +743,7 @@ function App() {
             Workspace <ChevronRight size={13} />{" "}
             <span>
               {view === "investigation"
-                ? "Merchant investigation"
+                ? "Follow the hidden connection"
                 : view.charAt(0).toUpperCase() + view.slice(1)}
             </span>
           </div>
@@ -834,7 +806,7 @@ function App() {
               <div>
                 <h1>
                   {view === "investigation"
-                    ? "Merchant investigation"
+                    ? "Follow the hidden connection"
                     : view === "transactions"
                       ? "Transaction explorer"
                       : view === "review"
@@ -845,7 +817,7 @@ function App() {
                 </h1>
                 <p>
                   {view === "investigation"
-                    ? "See the relationships behind every payment."
+                    ? "A spatial evidence room. Every payment has a story. Uncover the one that matters."
                     : view === "transactions"
                       ? "Inspect individual payments and their supporting evidence."
                       : view === "review"
@@ -917,7 +889,7 @@ function App() {
                 <section className="graph-panel">
                   <div className="panel-heading">
                     <div>
-                      <span className="green-square" /> Transaction network{" "}
+                      <span className="green-square" /> Spatial intelligence{" "}
                       <span className="muted">/ SRB-2041</span>
                     </div>
                     <div className="graph-actions">
@@ -960,8 +932,7 @@ function App() {
                       onSelect={setSelected}
                     />
                     <div className="graph-hint">
-                      Click a node to inspect evidence · Drag to pan · Scroll to
-                      zoom
+                      {hasWebGL ? "3D SPACE · Drag to orbit · Right-drag to pan · Scroll to zoom" : "COMPATIBILITY VIEW · WebGL unavailable · Drag to pan"}
                     </div>
                   </div>
                   <div className="graph-footer">

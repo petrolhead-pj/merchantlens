@@ -1824,3 +1824,32 @@ dd {
 .svg-graph g[role="button"]:focus circle {
   stroke-width: 3;
 }
+
+/* Spatial intelligence visual system */
+:root{--green:#369dff;--border:#1b3153;--panel:#0a1428;color:#e6f0ff;background:#050915}
+body{background:radial-gradient(ellipse at 70% 0%,#11224b 0%,#050915 55%)}
+.sidebar{background:linear-gradient(180deg,#0a1225,#060b18);border-right-color:#1b2d4b;width:210px}
+.topbar{background:rgba(5,10,24,.84);border-bottom-color:#193052;backdrop-filter:blur(20px)}
+.content{max-width:1800px;margin:auto}
+h1{font-size:clamp(27px,2.8vw,43px);letter-spacing:-1.8px;color:#f2f7ff}
+.eyebrow{color:#4daaff;letter-spacing:2.7px}
+.presentation-btn{background:linear-gradient(120deg,#1260ec,#34a5ff);color:white;box-shadow:0 0 25px #1678ff35;border:1px solid #75c1ff50}
+.nav-item.active{background:linear-gradient(90deg,#174a854d,#15345725);color:#68bbff;border-left:2px solid #3eacff}
+.stats{gap:12px}.metric{background:linear-gradient(135deg,#11223b,#0b1427);border:1px solid #243b5c;border-radius:14px;position:relative;overflow:hidden}.metric:after{content:'';position:absolute;left:0;top:0;width:60%;height:1px;background:linear-gradient(90deg,#369dff,transparent)}
+.investigation-grid{grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+.graph-panel{border:1px solid #294c7b;border-radius:18px;box-shadow:0 20px 80px #0007,0 0 40px #076bff0c}
+.panel-heading{background:linear-gradient(90deg,#132441,#0a1328);height:54px;letter-spacing:.4px}
+.graph-area{height:510px;background:#040a1b}.graph-area:before{display:none}
+.graph-overlay{color:#91b7df;background:#071329b5;border:1px solid #1f4169;border-radius:5px;padding:8px 10px;backdrop-filter:blur(8px)}
+.graph-hint{color:#85a7cd;bottom:16px;font-size:10px;letter-spacing:.3px}
+.graph-footer{background:#091428;border-top:1px solid #1b3456}
+.evidence-panel,.panel{border-radius:16px;background:linear-gradient(155deg,#101e35,#091224);border-color:#213753}
+.spatial-label{min-width:112px;text-align:center;background:linear-gradient(130deg,#0b1a30e8,#071020d9);border:1px solid #31517799;padding:8px 12px;border-radius:7px;box-shadow:0 6px 20px #0006;backdrop-filter:blur(8px)}
+.spatial-label strong{display:block;font-size:11px;white-space:nowrap;color:#e6f3ff}.spatial-label small{display:block;font-size:8px;margin-top:3px;color:#829cbd;white-space:nowrap}.spatial-label.active{border-color:var(--node-color);box-shadow:0 0 24px #218aff33}.spatial-label.dim{opacity:.25}
+.graph-node{box-shadow:0 8px 22px #0008,0 0 15px #268aff15}
+.graph-actions button{border:1px solid #29466a;border-radius:5px;padding:5px;background:#0a1930}
+.green-square{box-shadow:0 0 12px #329dff}
+.guide{background:linear-gradient(90deg,#102b52,#111830);border-color:#3279c7}
+@media(min-width:1600px){.graph-area{height:590px}.investigation-grid{grid-template-columns:minmax(0,1fr) 340px}}
+@media(max-width:1100px){.investigation-grid{grid-template-columns:1fr}.graph-area{height:500px}}
+@media(max-width:650px){.graph-area{height:410px}h1{font-size:27px}.sidebar{width:68px}}
