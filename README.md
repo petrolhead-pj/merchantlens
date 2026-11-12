@@ -1,7 +1,5 @@
 # MerchantLens
 
-An interactive merchant-purpose investigation prototype by **Paarth Jain**.
-
 MerchantLens explores whether observed payment activity matches a merchant's declared business. The demonstration follows Sunrise Bakery through mixed-purpose collections, a legitimate Diwali surge and incomplete evidence.
 
 ## Run locally
