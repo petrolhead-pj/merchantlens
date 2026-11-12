@@ -40,6 +40,7 @@ import {
 import * as THREE from "three";
 import "./style.css";
 import MoneyTrail from "./MoneyTrail.jsx";
+import { reviewPolicy, evidenceFor, buildCaseRecord, caseReportHTML } from "./review-policy.js";
 const money = (n) => "₹" + n.toLocaleString("en-IN");
 const palette = {
   safe: "#42d7ae",
@@ -522,17 +523,22 @@ function App() {
     [outcome, setOutcome] = useState(()=>savedCase("mixed").outcome ?? ""),
     [reason, setReason] = useState(()=>savedCase("mixed").reason ?? ""),
     [audit, setAudit] = useState(()=>{try{return JSON.parse(localStorage.getItem("merchantlens-audit")||"[]");}catch{return [];}}),
+    [verified, setVerified] = useState(false),
     [modal, setModal] = useState(null);
   useEffect(()=>{try{localStorage.setItem('merchantlens-audit',JSON.stringify(audit));}catch{}},[audit]);
   useEffect(()=>{try{localStorage.setItem('merchantlens-case-'+scenario,JSON.stringify({requested,response,outcome,reason}));}catch{}},[scenario,requested,response,outcome,reason]);
   const s = scenarios[scenario];
   const effectiveType = !evidence ? "unknown" : s.color;
   const unresolved = scenario === "unknown" || !evidence;
+  const policy = reviewPolicy({scenario, evidence, verified, reason});
+  const record = () => buildCaseRecord({scenario,evidence,bank,verified,outcome,reason,audit,requested,response});
+  function updateEvidence() { setEvidence(v => !v); setVerified(false); setOutcome(""); }
   function notify(t) {
     setToast(t);
     setTimeout(() => setToast(""), 3500);
   }
   function changeScenario(v) {
+    setVerified(false);
     setScenario(v);
     setSelected("bakery");
     setEvidence(true);
@@ -551,19 +557,7 @@ function App() {
     notify(text);
   }
   function exportCase() {
-    const data = {
-      project: "MerchantLens",
-      author: "Paarth Jain",
-      dataMode: "synthetic demonstration",
-      scenario,
-      merchant: "SRB-2041",
-      scoreType: "illustrative fixture, not trained inference",
-      evidenceAvailable: evidence,
-      bankFeedAvailable: bank,
-      outcome,
-      reviewerReason: reason,
-      audit,
-    };
+    const data = record();
     const url = URL.createObjectURL(
       new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
     );
@@ -573,6 +567,12 @@ function App() {
     a.click();
     URL.revokeObjectURL(url);
     notify("Case report exported");
+  }
+  function exportPrintableCase() {
+    const url = URL.createObjectURL(new Blob([caseReportHTML(record())], {type: "text/html"}));
+    const a = document.createElement("a"); a.href = url; a.download = `MerchantLens_Case_${scenario}.html`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notify("Case report downloaded. Open it and choose Print / Save as PDF.");
   }
   const selectedName =
     baseNodes.find((n) => n.id === selected)?.name || "Sunrise Bakery";
@@ -833,7 +833,7 @@ function App() {
                     requested,
                     response,
                   }}
-                  onEvidence={() => setEvidence(!evidence)}
+                  onEvidence={updateEvidence}
                   onInspect={() => setModal("evidence")}
                   onRequest={() => {
                     setRequested(true);
@@ -948,7 +948,7 @@ function App() {
                   <Toggle
                     label="Checkout purpose evidence"
                     checked={evidence}
-                    onChange={() => setEvidence(!evidence)}
+                    onChange={updateEvidence}
                   />
                   <Toggle
                     label="Authorized bank feed"
@@ -1186,8 +1186,8 @@ function App() {
                 <div className="section-heading">
                   <h3>Case ML-2041</h3>
                   <Status
-                    type={outcome === "Cleared" ? "safe" : effectiveType}
-                    text={outcome || "Open review"}
+                    type={record().outcome === "Cleared" ? "safe" : effectiveType}
+                    text={record().outcome}
                   />
                 </div>
                 <h2>Sunrise Bakery</h2>
@@ -1223,8 +1223,11 @@ function App() {
                     </div>
                     {response ? (
                       <p>
-                        Order ORD-582: catering deposit. Delivery record DEL-582
-                        and order reference attached for analyst verification.
+                        {scenario === "seasonal"
+                          ? "ORD-582 and DEL-582 match the seasonal campaign, merchant and session PS-0921. Verify the synthetic source records before clearing."
+                          : scenario === "mixed"
+                            ? "Merchant claims a catering deposit. The supplied generic order does not reconcile the observed alternate checkout at PS-0921. Mismatch remains open."
+                            : "Merchant supplied an order reference; independent checkout and fulfilment evidence is still missing. Keep the purpose unresolved."}
                       </p>
                     ) : (
                       <button
@@ -1239,6 +1242,15 @@ function App() {
                     )}
                   </div>
                 )}
+                <div className="verification-box">
+                  <h4>Evidence verification</h4>
+                  <p><strong>{evidenceFor(scenario).id}</strong> · SRB-2041 · PS-0921</p>
+                  <p className="subtle">{policy.explanation}</p>
+                  <label className="verify-label"><input type="checkbox" checked={verified} disabled={!evidence || scenario === "unknown"} onChange={e => {setVerified(e.target.checked); setOutcome("");}} />
+                    I checked the merchant, session, flagged interval and synthetic source records.
+                  </label>
+                  <p className="subtle">Scope: flagged checkout PS-0921. This attestation is local and unsigned.</p>
+                </div>
                 <h4>Reviewer reasoning</h4>
                 <textarea
                   value={reason}
@@ -1248,8 +1260,9 @@ function App() {
                 <div className="decision-actions">
                   <button
                     className="primary"
-                    disabled={!reason.trim()}
+                    disabled={!policy.canClear}
                     onClick={() => {
+                      if (!policy.canClear) return;
                       setOutcome("Cleared");
                       log("Case cleared with reviewer reasoning");
                     }}
@@ -1258,8 +1271,9 @@ function App() {
                   </button>
                   <button
                     className="secondary danger"
-                    disabled={!reason.trim()}
+                    disabled={!policy.canEscalate}
                     onClick={() => {
+                      if (!policy.canEscalate) return;
                       setOutcome("Escalated");
                       log("Case escalated with reviewer reasoning");
                     }}
@@ -1277,8 +1291,8 @@ function App() {
                   <h3>Decision history</h3>
                   <Clock size={17} />
                 </div>
-                {audit.length ? (
-                  audit.map((a, i) => (
+                {audit.some(a => a.scenario === scenario) ? (
+                  audit.filter(a => a.scenario === scenario).map((a, i) => (
                     <div className="audit-row" key={i}>
                       <span className="audit-dot" />
                       <div>
@@ -1300,6 +1314,7 @@ function App() {
                 <button className="secondary" onClick={exportCase}>
                   <Download size={15} /> Export case record
                 </button>
+                <button className="secondary" onClick={exportPrintableCase}><FileText size={15} /> Download printable report</button>
               </section>
             </div>
           )}
@@ -1698,3 +1713,4 @@ function Arch({ title, items, icon: Icon }) {
   );
 }
 createRoot(document.getElementById("root")).render(<App />);
+

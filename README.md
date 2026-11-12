@@ -54,3 +54,12 @@ Use a 1920 × 1080 desktop viewport if possible. Use the money trail and graph a
 ## Authorship
 
 Paarth Jain
+
+
+## Supporting documents and review safeguards
+
+`docs/SUPPORTING_NOTE.md` explains implementation, proposed architecture, validation and pilot criteria. `DEMO_SCRIPT.md` gives a 110-second recording plan.
+
+The review queue requires explicit evidence attestation and reasoning before clearing the supported Diwali scenario. Mixed-purpose and incomplete-evidence scenarios cannot be cleared in this deterministic demo. Escalation requires reasoning. Evidence/scenario changes reset attestation; only applicable outcomes are displayed/exported. History is scoped to the selected scenario.
+
+Use **Download printable report** in Review queue to save a self-contained HTML case record; open it and choose **Print / Save as PDF**. JSON export includes evidence context, coverage, applicable outcome and scenario history. Both are unsigned local records, not proof of evidence integrity.
