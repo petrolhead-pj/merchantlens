@@ -28,7 +28,7 @@ function download(name,content,type){
 }
 async function api(path,body){
   const response=await fetch(path,{...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(2500)});
-  if(!response.ok) throw new Error('Replay service returned '+response.status);
+  if(!response.ok) throw Object.assign(new Error('Replay service returned '+response.status),{status:response.status});
   return response.json();
 }
 function App(){
@@ -38,7 +38,7 @@ function App(){
   useEffect(()=>{let active=true;api('/api/replay').then(result=>{
     if(active){setReplay(result);setTransport('Local Node API');}
   }).catch(()=>{if(active)setTransport('Browser replay');});return ()=>{active=false;};},[]);
-  useEffect(()=>{try{localStorage.setItem(key,JSON.stringify(state));}catch{setMessage('Browser storage unavailable. Export this case before closing.');}},[state]);
+  useEffect(()=>{try{if(state.audit.length || state.reason || state.verified) localStorage.setItem(key,JSON.stringify(state));else localStorage.removeItem(key);}catch{setMessage('Browser storage unavailable. Export this case before closing.');}},[state]);
   const policy=reviewPolicy(state);
   function change(id,patch){
     setState(old=>revise(old,old.records.map(r=>r.id===id?{...r,...patch}:r),id,
@@ -49,8 +49,15 @@ function App(){
     lock.current=true;setBusy(true);setMessage('');
     try{
       let result;
-      if(transport==='Local Node API') result=await api(reset?'/api/replay/reset':decision?'/api/replay/decision':'/api/replay',event);
-      else result=replayPayload(reset?newReplay():decision?replayDecision(replay.state,event):applyEvent(replay.state,event));
+      if(transport==='Local Node API'){
+        try{result=await api(reset?'/api/replay/reset':decision?'/api/replay/decision':'/api/replay',event);}
+        catch(error){
+          if(error.status && error.status<500) throw error;
+          setTransport('Browser replay');
+          setMessage('Local API unavailable. Continuing on this page from the last acknowledged replay.');
+        }
+      }
+      if(!result) result=replayPayload(reset?newReplay():decision?replayDecision(replay.state,event):applyEvent(replay.state,event));
       setReplay(result);
       if(reset){
         for(const item of Object.keys(localStorage)) if(item.startsWith('merchantlens-')) localStorage.removeItem(item);
@@ -68,8 +75,9 @@ function App(){
   <section className="intro"><div><small>CASE ML-2041 · MERCHANT SRB-2041 · SESSION PS-0921</small><h2>Sunrise Bakery</h2><p>248 payments of ₹500 · Synthetic investigation · Local replay</p></div><div className="volume">{policy.spike?'6× collections':'Profile unavailable'}</div></section>
   <div key={epoch}><div className="columns"><section className="card"><h2>Evidence &amp; Data Availability Controls</h2><p>Enable a source, inspect its observation, or sever its payment mapping.</p>
   {state.records.map(r=><article className="source" key={r.id}><label><input type="checkbox" checked={r.enabled} onChange={e=>change(r.id,{enabled:e.target.checked})}/><strong>{r.id}</strong> · {r.source_name}</label>
+  {r.enabled && r.id==='CKT-ALT-09' && <button className="mapping-action" aria-pressed={!r.link_intact} onClick={()=>change(r.id,{link_intact:!r.link_intact})}>{r.link_intact?'Sever':'Restore'} CKT-ALT-09 payment mapping</button>}
   {r.enabled && <details><summary>Inspect observation</summary><p>{r.detail||r.transfer?.evidence||r.finding.replaceAll('_',' ')}</p><p>{r.data_source_tier} · {r.merchant_ref} / {r.session_ref}</p><p>Observed {r.observation_time}<br/>Received {r.received_time}</p>
-  {r.linked_payment_ids.length>0 && <><label><input type="checkbox" checked={r.link_intact} onChange={e=>change(r.id,{link_intact:e.target.checked})}/>Payment mapping intact</label><p className="ids">{r.link_intact?r.linked_payment_ids.join(', '):'Unmatched observation'}</p></>}</details>}</article>)}
+  {r.linked_payment_ids.length>0 && <>{r.id!=='CKT-ALT-09' && <label><input type="checkbox" checked={r.link_intact} onChange={e=>change(r.id,{link_intact:e.target.checked})}/>Payment mapping intact</label>}<p className="ids">{r.link_intact?r.linked_payment_ids.join(', '):'Unmatched observation'}</p></>}</details>}</article>)}
   <button onClick={()=>setState(s=>revise(s,s.records.map(r=>r.data_source_tier==='authorized_payout_bank'?{...r,enabled:!policy.bankEdges.length}:r),'Bank visibility'))}>{policy.bankEdges.length?'Hide':'Show'} downstream bank feed</button></section>
   <section className="card decision" aria-live="polite"><small>ANALYST REVIEW</small><h2>{labels[policy.recommended]}</h2><p>{policy.explanation}</p><div className="numbers"><strong>{policy.linked} / {policy.total}</strong><span>payments in review scope · {(policy.linked/policy.total*100).toFixed(1)}%</span></div>
   <p>{policy.total-policy.linked} outside this scope remain unverified. Independent purpose evidence covers {(policy.coverageRatio*100).toFixed(1)}% of payments.</p>

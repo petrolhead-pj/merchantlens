@@ -28,3 +28,15 @@ The two missed mismatches had a severed mapping or evidence received after the d
 ## Proposed production / shadow pilot
 
 Begin with permissioned historical replay, later-time and unseen-merchant evaluation, then a shadow queue alongside existing monitoring. Measure recall including abstentions, review time, merchant contacts, mapping coverage and cost per verified finding. Payment-profile data alone supplies no downstream transfer access. Payout coverage must be authorized separately. Use least privilege, tokenized identifiers, signed source provenance, retention and auditable corrections. The provider owns operational interventions and applicable reporting. The current process is single station, in-memory and suitable only for a local demonstration.
+
+### Interpreting the denominators
+
+The fixture truth is six planted mismatches and ten other cases. The four slots are analyst capacity. Across all 16, the policy recommends escalation / supported clearance / clarification / unresolved mapping in counts 4/0/1/1 for planted mismatches and 0/3/6/1 for the other ten. Clarification and unresolved mapping account for nine withheld purpose conclusions. Duplicate webhook deliveries are tested separately and add no benchmark cases. The benchmark command prints all sixteen names, labels and dispositions.
+
+### Pilot economics and regulatory owners
+
+Monthly net review value = reviewed cases × minutes saved per case ÷ 60 × loaded analyst hourly cost − incremental processing and evidence costs for that month. Exclude unverified prevented losses. Validate the inputs prospectively.
+
+RBI PA directions call for monitoring transactions against the merchant's business profile. Non-bank PAs have applicable FIU-IND registration and reporting responsibilities. An authorized compliance owner handles reporting. Proposed DPDP safeguards include purpose-limited access and tokenization with separately controlled re-identification. DPDP Rule 6 lists virtual tokens among safeguard options and has phased commencement. This local prototype provides no compliance certification.
+
+[RBI PA Directions](https://rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12896) · [DPDP Rules, Gazette](https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf)

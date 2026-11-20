@@ -30,7 +30,8 @@ export function reviewPolicy({records,context=caseInfo,asOf,verified=false,reaso
   if (disputed.size) {
     recommended='escalate_scoped_mismatch'; scope=[...disputed];
     explanation=conflicts.map(r=>r.id+' ('+r.source_name+')').join(', ')+' links an observed profile mismatch to '+scope.length+' payments.';
-    if(scope.some(id=>supported.has(id))) explanation+=' Independent order and delivery evidence also supports these payments. Investigate the disagreement.';
+    const overlap=scope.filter(id=>supported.has(id)).length;
+    if(overlap) explanation+=' The checkout observation contradicts order and delivery records for '+overlap+' of those same payments in session '+context.session+'. Reconcile the sources before clearance.';
   } else if (ambiguous.length) {
     recommended='unresolved_conflict'; scope=[];
     explanation='Available observations have unresolved mappings. Request identifiers before assigning an escalation or clearance scope.';

@@ -39,3 +39,9 @@ for(const key of ['volume','score']){
  console.log(key,JSON.stringify({reviewed:selected.map(r=>r.name),mismatchFound:hits,genuineQueued:budget-hits,missed:rows.filter(r=>r.mismatch).length-hits}));
 }
 console.log('Recommendations',Object.fromEntries([clear,ask,alert,unresolved].map(k=>[k,rows.filter(r=>r.recommendation===k).length])));
+
+console.table(rows.map(({name,mismatch,recommendation})=>({name,plantedMismatch:mismatch,recommendation})));
+console.table([true,false].map(truth=>{
+ const group=rows.filter(row=>row.mismatch===truth);
+ return {plantedMismatch:truth,total:group.length,...Object.fromEntries([alert,clear,ask,unresolved].map(k=>[k,group.filter(row=>row.recommendation===k).length]))};
+}));
