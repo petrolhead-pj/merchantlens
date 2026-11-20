@@ -1,6 +1,6 @@
 import React,{useState,useEffect,useRef,Suspense} from 'react';
 import {Canvas,useFrame,useThree} from '@react-three/fiber';
-import {Float,Html,Line,MeshDistortMaterial,OrbitControls,Stars} from '@react-three/drei';
+import {Float,Line,MeshDistortMaterial,OrbitControls,Stars} from '@react-three/drei';
 import * as THREE from 'three';
 const palette = {
   safe: "#42d7ae",
@@ -85,6 +85,10 @@ const edgeDefs = [
   ["bakery", "receiver", "unknown"],
   ["receiver", "endpoint", "unknown"],
 ];
+function visibleEdge(from,to,bankEdges) {
+  if (!['supplier','receiver','endpoint'].includes(to)) return true;
+  return bankEdges.some(row=>row.from===from && row.to===to);
+}
 function FlowEdge({ a, b, color, active }) {
   const particles = useRef([]);
   const curve = React.useMemo(() => new THREE.QuadraticBezierCurve3(new THREE.Vector3(...a), new THREE.Vector3((a[0]+b[0])/2, (a[1]+b[1])/2+0.65, (a[2]+b[2])/2+0.9),new THREE.Vector3(...b)),[a,b]);
@@ -104,16 +108,14 @@ function SpatialNode({node:n,selected,onSelect,dim,playing}) {
    <group ref={spin}><mesh rotation={[Math.PI/2.6,0.3,0]}><torusGeometry args={[radius*1.55,0.018,8,80]}/><meshBasicMaterial color={c} transparent opacity={dim?0.1:0.65}/></mesh>
    {selected&&<mesh rotation={[0.3,Math.PI/2,0]}><torusGeometry args={[radius*1.85,0.012,8,80]}/><meshBasicMaterial color="#ffffff" transparent opacity={0.5}/></mesh>}</group>
   </Float>
-  <Html position={[0,-radius-0.4,0]} center zIndexRange={[5,0]}><button aria-label={'Inspect '+n.name} onClick={()=>onSelect(n.id)} className={'spatial-label '+(selected?'active':'')+(dim?' dim':'')} style={{'--node-color':c}}><strong>{n.name}</strong><small>{n.sub}</small></button></Html>
  </group>;
 }
 function WebGLGraph({
   activeNodes,
+  bankEdges,
   selected,
   onSelect,
   playing,
-  bank,
-  evidence,
   focus,
   filter,
 }) {
@@ -123,6 +125,10 @@ function WebGLGraph({
   const visible=nodes;
   const kinds = Object.fromEntries(nodes.map((n) => [n.id, n.type]));
   return (
+    <div style={{height:'100%',display:'flex',flexDirection:'column'}}>
+    <div className="actions"><button onClick={()=>setCameraMode(cameraMode==='top'?'perspective':'top')}>Change camera</button>
+      <button onClick={()=>setAutoOrbit(!autoOrbit)} aria-pressed={autoOrbit}>Orbit</button>
+      <select aria-label="Inspect graph node" value={selected} onChange={e=>onSelect(e.target.value)}>{visible.map(n=><option key={n.id} value={n.id}>{n.name}</option>)}</select></div>
     <Canvas key={focus}
       camera={{ position: [1, 6, 16], fov: 48 }}
       dpr={[1, 1.7]}
@@ -135,13 +141,12 @@ function WebGLGraph({
       <mesh rotation={[-Math.PI/2,0,0]} position={[0,-4.32,0]}><planeGeometry args={[50,50]}/><meshStandardMaterial color="#040918" metalness={0.65} roughness={0.36}/></mesh>
       <Suspense fallback={null}>
         <GraphCamera mode={cameraMode} />
-        <Html fullscreen style={{pointerEvents:'none'}} zIndexRange={[10,9]}><div className="camera-presets" style={{pointerEvents:'auto'}}><button onClick={()=>setCameraMode('perspective')} className={cameraMode==='perspective'?'active':''}>Perspective</button><button onClick={()=>setCameraMode('top')} className={cameraMode==='top'?'active':''}>Front view</button><button onClick={()=>setAutoOrbit(v=>!v)} aria-pressed={autoOrbit}>{autoOrbit?'Stop orbit':'Auto orbit'}</button></div></Html>
         <group position={[-0.1, 0, 0]}>
           {edgeDefs
             .filter(
               ([a, b]) =>
                 visible.some((n) => n.id === a) &&
-                visible.some((n) => n.id === b),
+                visible.some((n) => n.id === b) && visibleEdge(a,b,bankEdges),
             )
             .map(([a, b, t], i) => {
               const c = a === "other" || b === "other" ? kinds.other : t;
@@ -159,7 +164,7 @@ function WebGLGraph({
         </group>
         <OrbitControls
           key={focus}
-          autoRotate={autoOrbit && playing}
+          autoRotate={autoOrbit}
           autoRotateSpeed={0.45}
           enableRotate={true}
           enablePan
@@ -171,7 +176,7 @@ function WebGLGraph({
           dampingFactor={0.07}
         />
       </Suspense>
-    </Canvas>
+    </Canvas></div>
   );
 }
 function GraphCamera({mode}) {
@@ -215,11 +220,10 @@ export default function Graph(props) {
 }
 function SVGGraph({
   activeNodes,
+  bankEdges,
   selected,
   onSelect,
   playing,
-  bank,
-  evidence,
   filter,
   focus,
 }) {
@@ -276,7 +280,7 @@ function SVGGraph({
         {edgeDefs
           .filter(
             ([a, b]) =>
-              nodes.some((n) => n.id === a) && nodes.some((n) => n.id === b),
+              nodes.some((n) => n.id === a) && nodes.some((n) => n.id === b) && visibleEdge(a,b,bankEdges),
           )
           .map(([a, b, t], i) => {
             const c =
