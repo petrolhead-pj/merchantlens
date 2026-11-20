@@ -75,6 +75,33 @@ function Study({onExit}){
     {[false,true].map(mode=>{const group=rows.filter(r=>r.assisted===mode);return <p key={String(mode)}>{mode?'MerchantLens':'Raw ledger'} · {group.filter(r=>r.correctScope).length}/{group.length} exact scopes · {group.filter(r=>r.requestedExtraContact).length} extra contacts requested</p>;})}
     <p>Both tasks contain enough evidence to identify the scope. Results stay in this browser. Export before clearing browser data.</p><button disabled={!rows.length} onClick={()=>download('MerchantLens-usability.json',JSON.stringify(rows,null,2),'application/json')}>Export trial results</button></section>}</main>;
 }
+function HistoricalReplay({onExit}){
+  const [data,setData]=useState(null),[index,setIndex]=useState(0),[cutoff,setCutoff]=useState(''),[error,setError]=useState('');
+  function selectOrder(batch,i){
+    setIndex(i);setCutoff(batch.orders[i].purchase);
+  }
+  async function open(file){
+    if(!file)return;
+    try{
+      const batch=JSON.parse(await file.text());
+      if(batch.format!=='merchantlens-olist-v1'||typeof batch.seller!=='string'||!Array.isArray(batch.orders)||!batch.orders.length||
+        !batch.orders.every(r=>typeof r.id==='string'&&typeof r.purchase==='string'&&Number.isFinite(Date.parse(r.purchase.replace(' ','T')))&&
+          (r.delivery===null||typeof r.delivery==='string')&&Number.isFinite(Number(r.amount))&&typeof r.method==='string'))throw Error();
+      setData(batch);selectOrder(batch,0);setError('');
+    }catch{setData(null);setError('Choose the JSON produced by scripts/import_olist.py.');}
+  }
+  const order=data?.orders[index];
+  return <main className="stall"><header><h1>Historical order replay</h1><button onClick={onExit}>Back to investigation</button></header>
+    <section className="card"><h2>Olist · Brazilian commerce</h2><p>Choose a locally prepared replay. Payment rows are linked retrospectively by order ID. The cutoff controls delivery evidence using the recorded event time.</p>
+    <label>Open Olist replay JSON <input type="file" accept=".json" onChange={e=>open(e.target.files[0])}/></label><p role="alert">{error}</p></section>
+    {order&&<section className="card"><p>Input payment rows: {data.inputPaymentRows} · Eligible orders across sellers: {data.eligibleOrders} · Selected seller: {data.orders.length} orders</p>
+    <p>Seller {data.seller}</p><label>Order <select value={index} onChange={e=>selectOrder(data,Number(e.target.value))}>{data.orders.map((r,i)=><option key={r.id} value={i}>{r.purchase.slice(0,10)} · {r.id}</option>)}</select></label>
+    <p>Purchased {order.purchase} · R$ {order.amount} · {order.method}</p>
+    <label>Evidence cutoff <input type="datetime-local" step="1" value={cutoff.replace(' ','T')} min={order.purchase.replace(' ','T')} onChange={e=>{if(e.target.value)setCutoff(e.target.value.replace('T',' '));}}/></label>
+    <div className="actions"><button onClick={()=>setCutoff(order.purchase)}>At purchase</button><button onClick={()=>setCutoff('2019-01-01 00:00:00')}>End of dataset window</button></div>
+    <p aria-live="polite">{cutoff<order.purchase?'Cutoff precedes this purchase.':order.delivery&&order.delivery<=cutoff?'Delivery recorded on '+order.delivery:'No delivery recorded by this cutoff.'}</p>
+    </section>}<footer>Source: Olist Brazilian E-Commerce Public Dataset · CC BY-NC-SA 4.0 · Single-seller, single-payment subset. Order fulfilment alone cannot establish merchant-wide legitimacy.</footer></main>;
+}
 function App(){
   const [state,setState]=useState(restore),[selection,select]=useState('bakery'),[search,setSearch]=useState('');
   const [replay,setReplay]=useState(()=>replayPayload(newReplay())),[transport,setTransport]=useState('Checking'),[message,setMessage]=useState('');
@@ -118,8 +145,9 @@ function App(){
   if(policy.sourceIds.includes('ORD-01'))graphNodes.push('cake','orders');
   const editReview=patch=>setState(s=>({...s,...patch,outcome:'Open review'}));
   const record=()=>buildCaseRecord(state);
+  if(study==="olist")return <HistoricalReplay onExit={()=>setStudy(false)}/>;
   if(study)return <Study onExit={()=>setStudy(false)}/>;
-  return <main className="stall"><header><div><small>MERCHANT RISK OPERATIONS</small><h1>MerchantLens</h1></div><button onClick={()=>setStudy(true)}>Timed usability study</button><button disabled={busy||transport==='Checking'} onClick={()=>replayAction({},true)}>Reset Stall Demo State</button></header>
+  return <main className="stall"><header><div><small>MERCHANT RISK OPERATIONS</small><h1>MerchantLens</h1></div><button onClick={()=>setStudy("olist")}>Historical order replay</button><button onClick={()=>setStudy(true)}>Timed usability study</button><button disabled={busy||transport==='Checking'} onClick={()=>replayAction({},true)}>Reset Stall Demo State</button></header>
   <section className="intro"><div><small>CASE ML-2041 · MERCHANT SRB-2041 · SESSION PS-0921</small><h2>Sunrise Bakery</h2><p>248 payments of ₹500 · Synthetic investigation · Local replay</p></div><div className="volume">{policy.spike?'6× collections':'Profile unavailable'}</div></section>
   <div key={epoch}><div className="columns"><section className="card"><h2>Evidence &amp; Data Availability Controls</h2><p>Enable a source, inspect its observation, or sever its payment mapping.</p>
   {state.records.map(r=><article className="source" key={r.id}><label><input type="checkbox" checked={r.enabled} onChange={e=>change(r.id,{enabled:e.target.checked})}/><strong>{r.id}</strong> · {r.source_name}</label>
