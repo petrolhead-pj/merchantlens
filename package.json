@@ -8,6 +8,8 @@
     "backend": "node backend/server.mjs",
     "test": "node --test backend/*.test.mjs",
     "setup": "npm --prefix frontend ci",
-    "preview": "npm --prefix frontend run preview"
+    "preview": "npm --prefix frontend run preview",
+    "stall": "node scripts/stall.mjs",
+    "benchmark": "node scripts/benchmark.mjs"
   }
 }

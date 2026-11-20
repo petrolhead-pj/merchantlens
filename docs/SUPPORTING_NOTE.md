@@ -1,55 +1,30 @@
-# MerchantLens - Technical and Validation Note
+# MerchantLens technical and validation note
 
-The Bakery That Takes Bets | Follow The Money, IIM Bangalore
-Team: Shreyas Naik, Paarth Jain, Anshul Vaibhav
-Version: 12 November 2026
+## Implemented locally today
 
-## Purpose
-MerchantLens helps an analyst assess whether current payment activity matches a merchant's declared business. A valid bakery identity and a payment amount alone do not explain payment purpose. A transaction spike is a lead; a decision requires scoped checkout, order and fulfilment evidence. Receiver timing alone does not prove illicit activity or attribution of commingled funds.
+Each source has an ID, source tier, named origin, observed and received times, merchant/session references, payment IDs, finding and link state. Only enabled, in-scope records observed and received by the case cutoff participate. Orders and fulfilments must originate from distinct named sources and cover the same payments. The displayed coverage is the fraction of distinct known payments with mapped independent checkout/fulfilment evidence.
 
-## Implemented prototype
-React/Vite frontend, Three.js/React Three Fiber graph with SVG fallback, three deterministic synthetic scenarios, searchable payment ledger, account-level money trail, event-time and recipient inspection, evidence coverage toggles, targeted clarification, simulated replies, local review history, JSON and printable HTML case exports. The printable HTML opens in a browser and can be saved as PDF. An optional read-only Node.js API exposes demo metadata; the frontend does not depend on it.
+A linked independent mismatch takes precedence and scopes escalation to the union of implicated IDs. Overlapping supporting records are disclosed. An ambiguous or severed checkout mapping keeps clearance unavailable pending clarification. Clearance applies only to the order/fulfilment intersection and requires reasoning and attestation. An analyst may request investigation of unresolved activity with reasons. A merchant claim cannot independently establish purpose. Each edit invalidates current attestation and disposition conservatively and saves the previous evidence, decision and reasoning. The case export includes only the current case and session. The queue index adds 10 points for a threefold spike, 15 for ambiguous mappings, 50 for a linked mismatch, and up to 25 proportional to the fraction implicated. These illustrative rules require partner validation.
 
-No live payment/bank/AWS integration, trained model inference, authenticated shared case store, signed evidence or automatic payment restriction is implemented.
+The 18 mapped receipts in the 248-payment example are 7.3% of the set. The other 230 are outside that link and remain unverified. A ₹36,000 invoice-backed supplier transfer, ₹18,000 to Receiver R and ₹15,000 from R to Z six minutes later are account movements. A specific customer's ₹500 cannot be attributed through a mixed balance using timing. The tracer bounds hops and stops cyclic paths.
 
-## Three scenario outcomes
-- Mixed purpose: 248 payments / INR 124,000. Fixture observation links 18 payments to an alternate checkout. Request clarification and escalate the checkout mismatch with reasons. A generic catering claim does not reconcile the observation. Clearance is deliberately unavailable in this deterministic demo.
-- Diwali surge: 612 payments / INR 306,000. Fixture campaign, orders and deliveries support bakery activity. Review scope and attest to evidence, then clear with reasons. This is a controlled example, not a measured fraud classifier.
-- Incomplete evidence: 96 payments / INR 48,000. Independent checkout purpose evidence is missing. Keep unresolved and request clarification. Escalation may request investigation; it is not a betting verdict.
+## Event transport and access
 
-## Added review controls
-Clearance requires the seasonal scenario, available checkout evidence, explicit reviewer attestation and nonblank reasoning. Escalation requires reasoning. Changing scenarios or checkout coverage resets attestation. Saved clearance is only displayed/exported when the current policy permits it. Review history and case exports include only the selected scenario. Replies vary by scenario. An attestation records a local reviewer action; it does not authenticate a source or validate a document cryptographically.
+Synthetic payments use PayU-style txnid, mihpayid, amount, status and addedon. Merchant/session bindings, event_id, source_feed, timestamps and udf_checkout_ref are local envelope fields. Receipt time in this controlled replay comes from its synthetic clock. The API checks the supported successful-payment schema and deduplicates payment IDs within the process. It rejects contradictory reuse of identifiers. Late checkout observations come from a separate synthetic observer. Browser-only mode exercises the same logic. The drawer is an isolated one-payment case; it does not add a 249th receipt to the stall ledger.
 
-## Case export contract
-Schema version 2 records team, scenario, merchant SRB-2041, session PS-0921, synthetic scope, evidence ID and finding, coverage flags, attestation, clarification state, current applicable outcome, reasoning, next-step recommendation, scoped history and limitations. It explicitly records that no payment restriction was executed. Review and history remain editable local-storage data. HTML escapes analyst text before rendering. Exported records are unsigned and are not tamper-proof audit evidence.
+[PayU payment webhooks](https://docs.payu.in/docs/webhook-events-and-sample-payloads) · [Separate payouts webhooks](https://docs.payu.in/docs/payouts-webhooks)
 
-## Money-trail interpretation
-Sample bank movements: Sunrise Bakery -> flour supplier INR 36,000 at 10:10; Bakery -> Receiver R INR 18,000 at 10:18; Receiver R -> Account Z INR 15,000 at 10:24. The supplier invoice supports an operating expense. R and Z remain unresolved. The existing tracer follows nondecreasing event time, defaults to four hops and stops cycles. The UI filters observed transfers by time; it does not allocate a specific payer's money through a mixed account.
+## Controlled benchmark
 
-## Proposed deployment
-Authorized provider payment/profile/checkout/bank feeds -> API Gateway/Lambda validation -> SQS buffering, idempotent event workers and dead-letter handling -> temporal/peer/typed-graph features -> explainable case assessment -> analyst workbench. Neptune stores observed graph edges; DynamoDB stores merchant and case state; S3 holds evidence and audit manifests. EventBridge Scheduler refreshes baselines and reconciles late events/replay. Access roles, KMS, tokenized identifiers, retention and signed manifests must be implemented and verified before a pilot. Monitoring is asynchronous alongside payment authorization. A risk score does not execute restrictions.
+Run `npm run benchmark`. Sixteen authored synthetic variants include six planted mismatches and ten other cases. Both queues take four, with input order breaking ties. Volume ranks by the collection multiple; MerchantLens ranks by its rule index. Inspect scripts/benchmark.mjs for every input and label.
 
-Start with transparent rules and robust baselines. XGBoost/CatBoost are candidate models to compare and calibrate when adjudicated labels permit; current UI scores are fixture values. Use only edges known at the scoring cutoff; split evaluation by merchant identity and later time. Unknown/missing evidence should trigger abstention or clarification. No measured accuracy, production throughput or savings are claimed.
+| Four reviews available | Mismatches surfaced | Genuine scenarios queued | Mismatches missed |
+|---|---:|---:|---:|
+| Volume queue | 1/6 | 3/4 reviews | 5/6 |
+| Evidence queue | 4/6 | 0/4 reviews | 2/6 |
 
-## Executed validation
-On 12 November 2026, npm test passed all 8 Node tests: forward trace/depth; cycle/earlier-edge/hop bounds; balance/no double counting; seasonal attestation/reason gates; missing/mixed evidence blocks clearance; stale outcome and scenario-history isolation; safe HTML escaping and boundary text; read-only API and fixture disclosure. npm run build passed. Vite reports a large JavaScript bundle; measure load performance on the recording device. A full browser interaction check could not run in the authoring environment because Chromium startup was blocked. Complete the manual walkthrough on the recording device before filming.
+The two missed mismatches had a severed mapping or evidence received after the decision cutoff. Across all cases, three supported scoped clearance, four scoped escalation, seven clarification and two unresolved mapping conflicts. The same authors designed these cases and rules. These counts describe fixture behavior. Field accuracy, analyst-time savings and prevented losses remain unmeasured.
 
-## Manual acceptance before recording
-1. Mixed: enter reasoning, request evidence and load the response. Clear remains disabled; Escalate is available. Inspect the scenario-specific reply.
-2. Seasonal: enter reasoning. Clear remains disabled until evidence attestation is checked, then permits clearance.
-3. Turn checkout coverage off: attestation/outcome become invalid and Clear is disabled.
-4. Unknown: attestation and Clear are disabled; missing purpose is explicit. No unrelated scenario history appears.
-5. Export JSON and printable report. Check scope, outcome, synthetic label and escaped free text. Open HTML and Print / Save as PDF.
-6. Reload: browser-local notes/history persist; attestation must be rechecked. Inspect money-trail time filtering, bank visibility and graph fallback on the recording device.
+## Proposed production / shadow pilot
 
-## Pilot and feasibility
-Pilot buyer: payment-provider risk teams. Begin with authorized historical replay, then identity/time holdout evaluation, then an approved shadow pilot without automated intervention. Compare rules and candidate models at the same analyst queue budget. Measure verified mismatch recall/precision, unsupported intervention rate on genuine merchants, median analyst review time, evidence coverage/freshness, replay correctness, cost per reviewed merchant and retained legitimate activity. The deck's 20%/25%/5 pp values are evaluation goals, not results.
-
-Data permissions, trustworthy checkout mapping, labels, analyst feedback and secured case storage are pilot prerequisites. Seasonal shifts, cold start and missing bank visibility require explicit coverage/uncertainty. Flood tolerance requires measured queue/idempotency/graph-budget tests. Evidence integrity requires provenance validation and tamper tests; printable export alone does not provide it. Shared IP or device links alone must not establish payment purpose. Intervention scope belongs to an authorized risk owner.
-
-## Reproduce and record
-Requires Node.js 22+. Run npm run setup, npm test, npm run dev. Build: npm run build; preview: npm run preview. Optional metadata API: npm run backend on 127.0.0.1:3001. Frontend normally starts on port 5173. The UI works without live services or model keys. If a restricted host cannot enumerate interfaces, run node node_modules/vite/bin/vite.js --host 127.0.0.1 from frontend/.
-
-See DEMO_SCRIPT.md for a 110-second recording plan. The app remains untimed and does not navigate automatically. Export the technical note PDF alongside the presentation and the actual working-prototype video. The note is supporting material, not a replacement for the 8-slide presentation or 2-minute video.
-
-Source: https://github.com/petrolhead-pj/merchantlens (reviewed base 6c4844d plus the supporting-documents update). Source files: frontend/src/main.jsx, frontend/src/review-policy.js, frontend/src/money-trail-data.js, backend/reviewPolicy.test.mjs and backend/server.mjs.
+Begin with permissioned historical replay, later-time and unseen-merchant evaluation, then a shadow queue alongside existing monitoring. Measure recall including abstentions, review time, merchant contacts, mapping coverage and cost per verified finding. Payment-profile data alone supplies no downstream transfer access. Payout coverage must be authorized separately. Use least privilege, tokenized identifiers, signed source provenance, retention and auditable corrections. The provider owns operational interventions and applicable reporting. The current process is single station, in-memory and suitable only for a local demonstration.
