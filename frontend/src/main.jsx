@@ -31,6 +31,50 @@ async function api(path,body){
   if(!response.ok) throw Object.assign(new Error('Replay service returned '+response.status),{status:response.status});
   return response.json();
 }
+function Study({onExit}){
+  const storageKey='ml-usability-trials-v1';
+  const [rows,setRows]=useState(()=>JSON.parse(localStorage.getItem(storageKey)||'[]'));
+  const [start,setStart]=useState(null);
+  const [selected,setSelected]=useState([]);
+  const participant=Math.floor(rows.length/2)+1, round=rows.length%2;
+  const assisted=(participant-1+round)%2===1;
+  const secondCase=(Math.floor((participant-1)/2)+round)%2===1;
+  const ids=caseInfo.payments.slice(secondCase?20:0,secondCase?28:8);
+  const linked=secondCase?[ids[1],ids[5]]:[ids[2],ids[6]];
+  const records=initialRecords().filter(r=>['ORD-01','FUL-01','CKT-ALT-09'].includes(r.id)).map(r=>({...r,enabled:true,
+    linked_payment_ids:r.id==='CKT-ALT-09'?linked:ids.filter(id=>!linked.includes(id))}));
+  const policy=reviewPolicy({context:{...caseInfo,payments:ids},records});
+  const differences=[];
+  for(let i=0;i+1<rows.length;i+=2){
+    const pair=rows.slice(i,i+2);
+    differences.push(pair.find(r=>!r.assisted).seconds-pair.find(r=>r.assisted).seconds);
+  }
+  differences.sort((a,b)=>a-b);
+  const mid=Math.floor(differences.length/2);
+  const median=differences.length?(differences[mid]+differences[Math.floor((differences.length-1)/2)])/2:null;
+  function finish(e){
+    e.preventDefault();
+    const form=new FormData(e.currentTarget);
+    const result={participant,round:round+1,case:secondCase?'B':'A',assisted,seconds:Math.round((performance.now()-start)/100)/10,
+      selected,expected:policy.scope,correctScope:selected.length===policy.linked&&selected.every(id=>policy.scope.includes(id)),
+      requestedExtraContact:form.get('contact')==='yes'};
+    const next=[...rows,result];localStorage.setItem(storageKey,JSON.stringify(next));setRows(next);setStart(null);setSelected([]);
+  }
+  return <main className="stall"><header><h1>Timed usability study</h1><button onClick={onExit}>Back to investigation</button></header>
+    <section className="card"><h2>Participant {participant} · Task {round+1} of 2</h2>
+    <p>Choose the payments linked to an observed purpose mismatch. Decide whether an additional merchant contact is needed to identify that scope.</p>
+    {start===null?<button onClick={()=>setStart(performance.now())}>Start timed task</button>:<form onSubmit={finish}>
+    <h3>{assisted?'MerchantLens review':'Raw ledger and source records'}</h3>
+    {assisted&&<p className="callout">{policy.explanation} Scoped IDs: {policy.scope.join(', ')}</p>}
+    {records.map(r=><p key={r.id}><b>{r.source_name}</b> · {r.finding.replaceAll('_',' ')} · {r.linked_payment_ids.join(', ')}</p>)}
+    <fieldset><legend>Payment ledger · select the review scope</legend>{ids.map(id=><label key={id} style={{display:'block'}}><input type="checkbox" checked={selected.includes(id)} onChange={e=>setSelected(e.target.checked?[...selected,id]:selected.filter(x=>x!==id))}/>{id} · ₹500</label>)}</fieldset>
+    <label>Request additional merchant contact? <select name="contact" required defaultValue=""><option value="">Choose</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+    <button>Submit and stop timer</button></form>}</section>
+    {start===null&&<section className="card"><h2>Session results</h2><p>{differences.length} completed participant pairs · {rows.length} submitted attempts</p>
+    {median!==null&&<p>Median paired difference (raw minus assisted): {median.toFixed(1)} seconds</p>}
+    {[false,true].map(mode=>{const group=rows.filter(r=>r.assisted===mode);return <p key={String(mode)}>{mode?'MerchantLens':'Raw ledger'} · {group.filter(r=>r.correctScope).length}/{group.length} exact scopes · {group.filter(r=>r.requestedExtraContact).length} extra contacts requested</p>;})}
+    <p>Both tasks contain enough evidence to identify the scope. Results stay in this browser. Export before clearing browser data.</p><button disabled={!rows.length} onClick={()=>download('MerchantLens-usability.json',JSON.stringify(rows,null,2),'application/json')}>Export trial results</button></section>}</main>;
+}
 function App(){
   const [state,setState]=useState(restore),[selection,select]=useState('bakery'),[search,setSearch]=useState('');
   const [replay,setReplay]=useState(()=>replayPayload(newReplay())),[transport,setTransport]=useState('Checking'),[message,setMessage]=useState('');
@@ -39,7 +83,10 @@ function App(){
     if(active){setReplay(result);setTransport('Local Node API');}
   }).catch(()=>{if(active)setTransport('Browser replay');});return ()=>{active=false;};},[]);
   useEffect(()=>{try{if(state.audit.length || state.reason || state.verified) localStorage.setItem(key,JSON.stringify(state));else localStorage.removeItem(key);}catch{setMessage('Browser storage unavailable. Export this case before closing.');}},[state]);
+  const [study,setStudy]=useState(false);
   const policy=reviewPolicy(state);
+  const revision=state.audit.at(-1);
+  const changed=state.records.find(r=>r.id===revision?.changed);
   function change(id,patch){
     setState(old=>revise(old,old.records.map(r=>r.id===id?{...r,...patch}:r),id,
       new Date(Math.max(Date.now(),Date.parse(old.asOf))).toISOString()));
@@ -71,7 +118,8 @@ function App(){
   if(policy.sourceIds.includes('ORD-01'))graphNodes.push('cake','orders');
   const editReview=patch=>setState(s=>({...s,...patch,outcome:'Open review'}));
   const record=()=>buildCaseRecord(state);
-  return <main className="stall"><header><div><small>MERCHANT RISK OPERATIONS</small><h1>MerchantLens</h1></div><button disabled={busy||transport==='Checking'} onClick={()=>replayAction({},true)}>Reset Stall Demo State</button></header>
+  if(study)return <Study onExit={()=>setStudy(false)}/>;
+  return <main className="stall"><header><div><small>MERCHANT RISK OPERATIONS</small><h1>MerchantLens</h1></div><button onClick={()=>setStudy(true)}>Timed usability study</button><button disabled={busy||transport==='Checking'} onClick={()=>replayAction({},true)}>Reset Stall Demo State</button></header>
   <section className="intro"><div><small>CASE ML-2041 · MERCHANT SRB-2041 · SESSION PS-0921</small><h2>Sunrise Bakery</h2><p>248 payments of ₹500 · Synthetic investigation · Local replay</p></div><div className="volume">{policy.spike?'6× collections':'Profile unavailable'}</div></section>
   <div key={epoch}><div className="columns"><section className="card"><h2>Evidence &amp; Data Availability Controls</h2><p>Enable a source, inspect its observation, or sever its payment mapping.</p>
   {state.records.map(r=><article className="source" key={r.id}><label><input type="checkbox" checked={r.enabled} onChange={e=>change(r.id,{enabled:e.target.checked})}/><strong>{r.id}</strong> · {r.source_name}</label>
@@ -79,7 +127,9 @@ function App(){
   {r.enabled && <details><summary>Inspect observation</summary><p>{r.detail||r.transfer?.evidence||r.finding.replaceAll('_',' ')}</p><p>{r.data_source_tier} · {r.merchant_ref} / {r.session_ref}</p><p>Observed {r.observation_time}<br/>Received {r.received_time}</p>
   {r.linked_payment_ids.length>0 && <>{r.id!=='CKT-ALT-09' && <label><input type="checkbox" checked={r.link_intact} onChange={e=>change(r.id,{link_intact:e.target.checked})}/>Payment mapping intact</label>}<p className="ids">{r.link_intact?r.linked_payment_ids.join(', '):'Unmatched observation'}</p></>}</details>}</article>)}
   <button onClick={()=>setState(s=>revise(s,s.records.map(r=>r.data_source_tier==='authorized_payout_bank'?{...r,enabled:!policy.bankEdges.length}:r),'Bank visibility'))}>{policy.bankEdges.length?'Hide':'Show'} downstream bank feed</button></section>
-  <section className="card decision" aria-live="polite"><small>ANALYST REVIEW</small><h2>{labels[policy.recommended]}</h2><p>{policy.explanation}</p><div className="numbers"><strong>{policy.linked} / {policy.total}</strong><span>payments in review scope · {(policy.linked/policy.total*100).toFixed(1)}%</span></div>
+  <section className="card decision" aria-live="polite"><small>ANALYST REVIEW</small><h2>{labels[policy.recommended]}</h2>{revision?.before?.outcome==='Cleared'&&state.outcome==='Open review'&&<h3 className="callout">Clearance reopened · {revision.before.policy.linked} previously cleared payments</h3>}
+  {changed?.enabled&&!changed.link_intact&&<p className="callout">Payment mapping removed from {changed.id}. The observation remains available, but it can no longer identify specific payments.</p>}
+  <p>{policy.explanation}</p><div className="numbers"><strong>{policy.linked} / {policy.total}</strong><span>payments in review scope · {(policy.linked/policy.total*100).toFixed(1)}%</span></div>
   <p>{policy.total-policy.linked} outside this scope remain unverified. Independent purpose evidence covers {(policy.coverageRatio*100).toFixed(1)}% of payments.</p>
   <p>Queue points <b>{policy.score}</b> · {policy.sourceIds.join(', ')||'No mapped purpose sources'}</p>
   {state.records.some(r=>r.enabled&&r.data_source_tier==='merchant_claim')&&<p>Merchant claim · {policy.sourceIds.length?'Compare against '+policy.sourceIds.join(', '):'No independent purpose evidence available'}. A catering explanation alone cannot clear the case.</p>}
