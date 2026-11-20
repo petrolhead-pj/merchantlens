@@ -33,7 +33,11 @@ Target 4:45. Paarth narrates, Shreyas operates, Anshul watches the clock and han
 | Who reports and protects identifiers? | The RBI PA directions call for merchant-profile monitoring. Applicable FIU-IND reporting belongs to the regulated entity. Proposed DPDP safeguards include tokenized identifiers with controlled re-identification. |
 | How would you price a pilot? | Multiply monthly cases by minutes saved, divide by 60, multiply by loaded hourly cost, then subtract processing and evidence costs. Exclude unverified prevented losses. |
 
+**Does clarification hide false-positive friction?** “Yes, clarification costs time. Six of ten cases without a planted mismatch prompted clarification.” These authored stress cases emphasize missing evidence. A clarification prompts evidence gathering; escalation routes a case to a risk reviewer. Neither action in this prototype interrupts payments. Count actual unnecessary merchant contacts, repeat requests and analyst minutes per case alongside missed mismatches at equal review capacity. Agree on limits with the partner before the pilot and stop if exceeded.
+
 ## Stall recovery
+
+Keep the loaded tab open if Node stops. Avoid refreshing during the pitch. If the interface freezes, play the pre-opened 34-second local clip immediately. Before merging, each teammate should read the A4 table and run the 2:20 handoff once.
 
 Build on all three laptops in advance. Start npm run stall, visit the loopback URL, disconnect external Wi-Fi and test from a fresh tab. Reset between visits. The default page and SVG compatibility graph use local assets. If the graph fails, use the records, transfer table and decision history. Keep the second laptop ready. Print the A3 at actual size and the results sheet on A4. Personalize the editable poster with your own team illustration before printing if desired.
 
