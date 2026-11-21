@@ -83,3 +83,9 @@ export function decide(state,outcome,time=new Date().toISOString()) {
   const next={...state,outcome};
   return {...next,audit:[...state.audit,{caseId:state.context.caseId,session:state.context.session,time,text:outcome,after:snapshot(next)}]};
 }
+export function checkoutVerdict(kinds){
+  const has=kind=>kinds.includes(kind);
+  if(has('payment')&&(has('credit')||has('topup')))return {status:'Purpose mismatch — review',why:'Sunrise Bakery received ₹500 linked to '+(has('credit')?'a wallet credit':'an observed wallet top-up')+', which conflicts with its declared bakery business.'};
+  if(['payment','cake','order','delivery'].every(has))return {status:'Cake sale supported',why:'Sunrise Bakery received ₹500 for a cake checkout matched to its order and delivery record.'};
+  return {status:'Purpose unverified',why:!has('payment')?'Evidence is waiting for provider confirmation.':has('cake')?'The cake checkout matches this payment. Order or delivery evidence is pending.':'Sunrise Bakery received ₹500. No independent checkout observation has matched this payment yet.'};
+}
