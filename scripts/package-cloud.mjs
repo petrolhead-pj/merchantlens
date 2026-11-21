@@ -5,6 +5,7 @@ for (const path of [
   "backend/exhibition.mjs",
   "frontend/src/review-policy.js",
   "frontend/src/case-data.js",
+  "frontend/src/money-trail-data.js",
   "frontend/package.json",
 ]) {
   const dest = ".demo-package/" + path;
@@ -12,3 +13,5 @@ for (const path of [
   await copyFile(path, dest);
 }
 await copyFile("cloud/package.json", ".demo-package/package.json");
+// Detect missing transitive rule imports before SAM starts installing SDKs.
+await import("../.demo-package/backend/exhibition.mjs");

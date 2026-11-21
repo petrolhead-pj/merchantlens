@@ -19,15 +19,27 @@ Before deployment, the owner must identify the account, approved AWS profile and
 
 Review `cloud/budget.yaml` separately. It defines a $10 monthly account-wide cost budget excluding credits, with actual thresholds of $5/$8/$10 and forecast $10. Alerts can be delayed and do not cap charges. With budget authorization, first check existing budgets and the owner's address, then preview the template as a separate CloudFormation change set.
 
+After the owner identifies the target, use the approved profile for every account command. Run `aws freetier get-account-plan-state --region us-east-1 --profile PROFILE` and compare the account ID to STS. Record plan status, remaining credits and plan expiration. Check individual credit expirations and eligible services in Billing → Credits. Inspect `aws budgets describe-budgets --account-id ACCOUNT_ID --profile PROFILE`, then verify notifications and subscribers for the matching budget. If creation is authorized and needed, preview `cloud/budget.yaml` with `aws cloudformation deploy --no-execute-changeset --stack-name merchantlens-exhibition-budget --template-file cloud/budget.yaml --parameter-overrides OwnerEmail=OWNER_EMAIL --region REGION --profile PROFILE`. Execute the approved budget change set and verify it before creating the app stack. Record any denied API or unavailable plan feature.
+
 Prepare locally:
 
+    uv venv .demo-tools/validation
+    uv pip install --python .demo-tools/validation/Scripts/python.exe aws-sam-cli==1.174.0 cfn-lint==1.58.0
+    $env:Path = (Resolve-Path .demo-tools/validation/Scripts).Path + ';' + $env:Path
+    $env:SAM_CLI_TELEMETRY='0'
     node scripts/package-cloud.mjs
-    sam validate --lint --template-file cloud/template.yaml
-    sam build --template-file cloud/template.yaml
+    cfn-lint cloud/template.yaml cloud/budget.yaml
+    sam validate --lint --region us-east-1 --template-file cloud/template.yaml
+    sam build --region us-east-1 --template-file cloud/template.yaml
+    node scripts/check-cloud-build.mjs
+
+The region in these local validation commands selects schemas. The deployment region comes from the owner. A planning estimate for **us-east-1** is **roughly USD 2–4 per month before credits** for 100 three-minute runs, a single visible workbench, at most 100 small cases, and no other traffic. It assumes up to four pages per poll (90,000 HTTP calls), 256 MB functions averaging 200 ms per call, under 2 million DynamoDB read units, under 1 GB of logs, and up to 10 GB of outgoing case data. Three continuously published custom metrics and two alarms allow about $1.10, HTTP API calls about $0.09, DynamoDB reads about $0.25, Lambda requests and compute about $0.10, and log ingestion up to $0.50. The range allows for transfers, SQS polling, private exports, packaging storage and scheduling. This is incremental demo usage; regional prices, portfolio size, retries and keeping tabs open affect the bill. Reprice for the authorized region and verify the account's credit treatment before deployment. [CloudWatch](https://aws.amazon.com/cloudwatch/pricing/), [HTTP API](https://aws.amazon.com/api-gateway/pricing/), [DynamoDB](https://aws.amazon.com/dynamodb/pricing/), [Lambda](https://aws.amazon.com/lambda/pricing/).
 
 After profile, budget, artifact bucket and region approval, prepare a change set:
 
     sam deploy --no-execute-changeset --stack-name merchantlens-exhibition --s3-bucket APPROVED_ARTIFACT_BUCKET --capabilities CAPABILITY_IAM --profile PROFILE --region REGION --tags Project=MerchantLens Environment=exhibition
+
+For a new stack, the expected changes are one HTTP API and stage with four IAM-protected routes, four 256 MB Lambda functions and execution roles, one SQS mapping capped at two concurrent batches, two queues, one DynamoDB table with the sparse pending-age index, one private S3 bucket, four three-day log groups, two alarms and one schedule with its invocation permissions. The application template excludes the budget. Inspect the generated change set for replacements, deletions, IAM grants, resource names and region before execution. The control-plane change set can only be produced in the approved account.
 
 Review IAM, changes and charges before executing. Configure the local workstation with the actual stack endpoint and rebuild:
 
@@ -36,13 +48,17 @@ Review IAM, changes and charges before executing. Configure the local workstatio
     $env:AWS_REGION='APPROVED_REGION'
     $env:MERCHANTLENS_API='https://API_ID.execute-api.REGION.amazonaws.com/api/cases'
     $env:VITE_CASE_API='/api/cloud'
-    npm run build
-    npm run stall
+    npm --prefix frontend run build -- --outDir ../.demo-tools/cloud-dist
+    $env:STALL_DIST=(Resolve-Path .demo-tools/cloud-dist).Path
+    $env:REHEARSAL_API='/api/cloud'
+    node scripts/rehearse.mjs
 
 Use `?offline` to enter the separate local rehearsal. Stop the launcher and close the tabs to stop polling. To tear down, verify the account and stack name, export needed cases, empty the stack's artifact bucket if populated, and run `sam delete --stack-name merchantlens-exhibition --profile PROFILE --region REGION`. Check for artifacts left in the packaging bucket. Review the separate budget with the owner.
+
+To pause a deployed stack, stop demo intake, wait for SQS visible and in-flight counts to reach zero, then disable the reconciliation schedule in EventBridge Scheduler. Find the worker mapping UUID with `aws lambda list-event-source-mappings --function-name WORKER_PHYSICAL_NAME --region REGION --profile PROFILE` and disable it with `aws lambda update-event-source-mapping --uuid UUID --no-enabled --region REGION --profile PROFILE`. Re-enable the mapping and schedule before rehearsing again. Alarms and stored data can still incur charges while paused. Verify stack deletion and remaining S3 objects for a full teardown. Keep the account-wide budget unless the owner requests its removal. [AWS budget notification timing](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html)
 
 ## Verification
 
 Baseline 8c6f040, Node 22.16.0. All 14 original tests passed; benchmark reviewed 4/16 synthetic cases, detecting 4 planted mismatches versus 1 by volume. Initial build attempted during dependency installation could not find Vite. Post-install production build passed with the existing large graph chunk warning. The added regression test covers evidence-first, duplicate payment, late conflict, reopening, historical decisions, stale version and mismatched references.
 
-Install the optional browser runner with `npm install --prefix .demo-tools playwright-core`. With Edge installed, run `node scripts/rehearse.mjs` following the production build and with port 4173 free. The runner uses two pages, denies external browser requests, exercises all four scenarios, checks duplicate totals and captures screenshots at 1440×900, 1280×720 and 390×844. AWS deployment, budget creation, real provider callbacks and cloud latency have not been exercised.
+Install the optional browser runner with `npm install --prefix .demo-tools playwright-core`. For an offline rerun use a fresh shell with the default local API, run `npm --prefix frontend run build -- --outDir ../.demo-tools/rehearsal-dist`, set `$env:STALL_DIST=(Resolve-Path .demo-tools/rehearsal-dist).Path`, then run `node scripts/rehearse.mjs`. It launches a separate test server on 4174, drives two browser pages, denies external browser requests, measures each case by checkout reference and version, and verifies disconnect/reconnect and viewport overflow. The running stall on 4173 retains its original in-memory cases. For an interactive cloud rehearsal, use the cloud build settings above, set `$env:STALL_PORT='4175'` and run `npm run stall`. The deployed backend and its latency require separate verification. [Observed results](EXHIBITION_RESULTS.md)

@@ -10,6 +10,7 @@ import { append, review, validate } from "../backend/exhibition.mjs";
 import { isDeepStrictEqual } from "node:util";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 const artifacts = new S3Client({});
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({})),
   queue = new SQSClient({});
@@ -57,8 +58,13 @@ function casePut(c, old) {
     Put: {
       TableName,
       Item: { ...Key(c.id), c, version: c.version, ...pending },
-      ConditionExpression: old ? "version = :v" : "attribute_not_exists(pk)",
-      ...(old ? { ExpressionAttributeValues: { ":v": old.version } } : {}),
+      ConditionExpression: old ? "#v = :v" : "attribute_not_exists(pk)",
+      ...(old
+        ? {
+            ExpressionAttributeNames: { "#v": "version" },
+            ExpressionAttributeValues: { ":v": old.version },
+          }
+        : {}),
     },
   };
 }
@@ -110,7 +116,25 @@ export async function worker(batch) {
   const start = Date.now();
   for (const r of batch.Records)
     try {
-      await processRecord(JSON.parse(r.body));
+      const envelope = JSON.parse(r.body);
+      // Two feeds can update one case in the same polling interval. Reread
+      // the case and recompute the verdict before waiting for SQS redelivery.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await processRecord(envelope);
+          break;
+        } catch (error) {
+          if (
+            attempt >= 2 ||
+            ![
+              "TransactionCanceledException",
+              "TransactionConflictException",
+            ].includes(error.name)
+          )
+            throw error;
+          await delay(25 * (attempt + 1) + Math.random() * 25);
+        }
+      }
     } catch {
       batchItemFailures.push({ itemIdentifier: r.messageId });
     }
@@ -142,7 +166,8 @@ export async function reconcile() {
     new QueryCommand({
       TableName,
       IndexName: "PendingAge",
-      KeyConditionExpression: "pending = :p",
+      KeyConditionExpression: "#pending = :p",
+      ExpressionAttributeNames: { "#pending": "pending" },
       ExpressionAttributeValues: { ":p": "OPEN" },
       Limit: 1,
     }),

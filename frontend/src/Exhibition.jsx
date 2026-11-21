@@ -338,9 +338,9 @@ function Evidence({ c }) {
               fit();
               select(
                 "edge/" +
-                  (nodes.find((n) =>
-                    ["credit", "topup", "delivery"].includes(n.key),
-                  )?.key || "merchant"),
+                  (["credit", "topup", "delivery"].find(kind =>
+                    nodes.some(n => n.key === kind),
+                  ) || "merchant"),
               );
             }}
           >

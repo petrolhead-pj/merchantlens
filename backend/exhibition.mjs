@@ -213,12 +213,12 @@ export function localCases() {
           throw Error("Wrong source route");
         const identity = sources[e.kind] + e.id;
         if (
-          (identities.has(identity) && identities.get(identity) !== e.ref) ||
+          (identities.has(identity) && !isDeepStrictEqual(identities.get(identity),e)) ||
           (payments.has(e.payment) && payments.get(e.payment) !== e.ref)
         )
           throw Error("Conflicting scoped identifier");
         cases.set(e.ref, append(cases.get(e.ref), e));
-        identities.set(identity, e.ref);
+        identities.set(identity, e);
         payments.set(e.payment, e.ref);
       }
       res.end('{"accepted":true}');
