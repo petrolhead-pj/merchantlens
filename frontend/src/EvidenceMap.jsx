@@ -8,7 +8,6 @@ import {
   Monitor,
   MousePointer2,
   PackageCheck,
-
   Store,
   Wallet,
   Minus,
@@ -56,6 +55,14 @@ const labels = {
   storefront: "Storefront",
   refund: "Provider",
 };
+export const recordName = (c, key) =>
+  key === "delivery" && c.fulfilment?.method === "Pickup"
+    ? "Cake collected"
+    : records[key][0];
+export const relationName = (c, key) =>
+  key === "delivery" && c.fulfilment?.method === "Pickup"
+    ? "collection for order"
+    : verbs[key];
 const point = (k) => records[k].slice(2);
 export function EvidenceMap({
   c,
@@ -81,7 +88,9 @@ export function EvidenceMap({
   const lit = active && new Set(active.flatMap((e) => [e.from, e.to]));
   useEffect(() => {
     const area = viewport.current;
-    const center = () => { area.scrollLeft = (area.scrollWidth - area.clientWidth) / 2; };
+    const center = () => {
+      area.scrollLeft = (area.scrollWidth - area.clientWidth) / 2;
+    };
     const observer = new ResizeObserver(center);
     observer.observe(area);
     return () => observer.disconnect();
@@ -140,7 +149,7 @@ export function EvidenceMap({
                   key={e.to}
                   role="button"
                   tabIndex="0"
-                  aria-label={verbs[e.to]}
+                  aria-label={relationName(c, e.to)}
                   onClick={fn}
                   onKeyDown={(v) => keyboard(v, fn)}
                   className={[
@@ -154,13 +163,18 @@ export function EvidenceMap({
                   <line className="hit" x1={x} y1={y} x2={a} y2={b} />
                   <line x1={x} y1={y} x2={a} y2={b} />
                   <text x={(x + a) / 2} y={(y + b) / 2 - 4}>
-                    {verbs[e.to]}
+                    {relationName(c, e.to)}
                   </text>
                 </g>
               );
             })}
             {c.nodes.map((n) => {
-              const [name, Icon, x, y] = records[n.key],
+              const [, Icon, x, y] = records[n.key],
+                name = recordName(c, n.key),
+                type =
+                  n.key === "delivery" && c.fulfilment
+                    ? "Merchant record"
+                    : labels[n.key],
                 pay = n.key === "payment",
                 fn = () => pick(n.key);
               return (
@@ -168,7 +182,7 @@ export function EvidenceMap({
                   key={n.key}
                   role="button"
                   tabIndex="0"
-                  aria-label={labels[n.key] + " · " + name}
+                  aria-label={type + " · " + name}
                   onMouseEnter={() => setHover(n.key)}
                   onMouseLeave={() => setHover(null)}
                   onFocus={() => setHover(n.key)}
@@ -194,7 +208,7 @@ export function EvidenceMap({
                   />
                   <Icon x="-71" y={pay ? -27 : -18} width="17" height="17" />
                   <text x="-47" y={pay ? -13 : -4} className="node-type">
-                    {labels[n.key]}
+                    {type}
                   </text>
                   <text x="-69" y={pay ? 27 : 18} className="node-title">
                     {name}

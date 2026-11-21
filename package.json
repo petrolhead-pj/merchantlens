@@ -3,6 +3,8 @@
   "private": true,
   "author": "Paarth Jain",
   "scripts": {
+    "start": "node scripts/product.mjs",
+    "accounts": "node scripts/product.mjs --setup",
     "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
     "backend": "node backend/server.mjs",
@@ -11,5 +13,9 @@
     "preview": "npm --prefix frontend run preview",
     "stall": "node scripts/stall.mjs",
     "benchmark": "node scripts/benchmark.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1175.0",
+    "@aws-sdk/lib-dynamodb": "3.1175.0"
   }
 }

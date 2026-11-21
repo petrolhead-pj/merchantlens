@@ -11,7 +11,12 @@ import {
   ArrowDownRight,
   ChevronRight,
 } from "lucide-react";
-import { EvidenceMap, decisive, records, verbs } from "./EvidenceMap.jsx";
+import {
+  EvidenceMap,
+  decisive,
+  recordName,
+  relationName,
+} from "./EvidenceMap.jsx";
 const time = (t) => new Date(t).toLocaleTimeString();
 export function Investigation({ c, api }) {
   const [selected, select] = useState("payment"),
@@ -42,6 +47,7 @@ export function Investigation({ c, api }) {
         <li key={h.version}>
           <time>{time(h.time)}</time>
           {h.text}
+          {h.actor ? " · " + h.actor : ""}
         </li>
       ))}
     </ol>
@@ -91,8 +97,8 @@ export function Investigation({ c, api }) {
             {c.edges.map((e) => (
               <button key={e.to} onClick={() => pick("edge/" + e.to)}>
                 <Link2 />
-                {records[e.from][0]} <span>{verbs[e.to]}</span>{" "}
-                {records[e.to][0]}
+                {recordName(c, e.from)} <span>{relationName(c, e.to)}</span>{" "}
+                {recordName(c, e.to)}
                 <ChevronRight />
               </button>
             ))}
@@ -110,7 +116,9 @@ export function Investigation({ c, api }) {
               {conflict ? "Contradictory evidence" : "Linked outcome"}
             </small>
             <b>
-              {conflict || supported ? records[driver][0] : "Evidence pending"}
+              {conflict || supported
+                ? recordName(c, driver)
+                : "Evidence pending"}
             </b>
           </div>
         </div>
@@ -126,13 +134,31 @@ export function Investigation({ c, api }) {
           </span>
           <h2>{c.status}</h2>
           <p>{c.why}</p>
+          {c.unresolved && (
+            <details>
+              <summary>Unresolved browser observation</summary>
+              <p>{c.unresolved.reason}</p>
+              <small>Reported reference {c.unresolved.record.ref}</small>
+            </details>
+          )}
+          {c.fulfilment && (
+            <p>
+              {c.fulfilment.method} ·{" "}
+              {c.fulfilment.stage === "Delivered" &&
+              c.fulfilment.method === "Pickup"
+                ? "Collected"
+                : c.fulfilment.stage}
+            </p>
+          )}
         </div>
         <div className="record-section">
           <small>
             Selected {selected.startsWith("edge/") ? "relationship" : "record"}
           </small>
           <h3>
-            {selected.startsWith("edge/") ? verbs[key] : records[record.key][0]}
+            {selected.startsWith("edge/")
+              ? relationName(c, key)
+              : recordName(c, record.key)}
           </h3>
           <p className="source">
             <Activity /> {record.source}
@@ -156,6 +182,19 @@ export function Investigation({ c, api }) {
                 </React.Fragment>
               ))}
             </dl>
+          </details>
+          <details>
+            <summary>Applied evidence rule</summary>
+            <p>{c.rule}</p>
+            <dl>
+              <dt>Input evidence IDs</dt>
+              <dd>{c.evidenceIds.join(" / ")}</dd>
+            </dl>
+            {c.fulfilment?.events?.map((e) => (
+              <p key={e.id}>
+                {e.stage} · {e.actor} · {e.id}
+              </p>
+            ))}
           </details>
         </div>
         <div className="review">

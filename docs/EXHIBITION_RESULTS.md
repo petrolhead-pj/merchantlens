@@ -107,3 +107,19 @@ The payment, finding and Chocolate cake / Wallet credited comparison fit togethe
 | Cake claim with wallet credit | 553 ms | 2264 ms |
 
 One final two-tab Edge run per variant and mode. Both rehearsals observed the pending cake claim before the ledger credit, then verified duplicate confirmation, timeline navigation, node and relationship selection, explain, and retained selection, zoom and pan after late evidence. The case reopened, earlier history survived a rejected stale write, and polling recovered after a forced feed interruption. External browser requests were blocked. All 16 backend tests passed, the benchmark completed, and both production builds included the local font and storefront photograph.
+
+## Persistent application verification
+
+The authenticated [customer, merchant and analyst application](APPLICATION.md) was exercised against SQLite on the workstation and the existing DynamoDB table in ap-southeast-2. Each final run completed all of the following through separate Edge sessions, with the ledger conflict injected by the integration runner:
+
+| Check | Observed result in both modes |
+| --- | --- |
+| Cake checkout and fulfilment | Confirmed payment, persisted order, acceptance, preparation, readiness and delivery led to a supported finding. |
+| Wallet checkout | One ₹500 ledger posting changed the owner's balance. Five concurrent confirmation retries left it unchanged. |
+| Observation disconnected | The cake payment and order persisted with a purpose-unverified finding. |
+| Fresh contradictory ledger entry | Two simultaneous posting attempts against the same reviewed cake payment created one credit. The finding changed to mismatch, the outcome reopened and the prior decision history remained intact. |
+| Refresh and process restart | After signing back in, customer orders and ledger entries matched the pre-restart records and the reopened case matched its prior snapshot. |
+| Access boundaries | A second customer could neither see nor confirm the buyer's transaction. Customer fulfilment, analyst checkout and customer credentials at analyst login were rejected. A stale analyst write received HTTP 409. |
+| Layout | Customer, merchant and analyst screens passed viewport overflow checks at 1440×900, 1280×720 and 390×844. |
+
+All 18 Node tests passed. They include pending pickup, unresolved-reference isolation, merchant isolation and a simulated lost commit acknowledgement. The synthetic benchmark and final production build completed. The separate offline exhibition runner also passed all four historical variants and reconnect recovery. The production build still reports the legacy graph chunk-size warning.
