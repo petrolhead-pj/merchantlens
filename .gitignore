@@ -2,3 +2,6 @@ node_modules/
 dist/
 .env*
 *.zip
+.demo-tools/
+.demo-package/
+.aws-sam/
