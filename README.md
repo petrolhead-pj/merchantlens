@@ -1,5 +1,7 @@
 # MerchantLens
 
+The default exhibition opens a two-window checkout and evidence workbench. See the [three-minute rehearsal, local setup and AWS preview](docs/EXHIBITION.md). The previous 248-payment investigation remains under **Seeded replay**.
+
 An analyst workspace for **The Bakery That Takes Bets**, IIM Bangalore. Follow two ₹500 payments into the same merchant and inspect what the available evidence supports.
 
 ## Run at the exhibition

@@ -1,11 +1,16 @@
 import http from 'node:http';
+import {localCases} from './exhibition.mjs';
+import {awsBridge} from './aws-bridge.mjs';
 import { pathToFileURL } from 'node:url';
 import {newReplay,applyEvent,replayPayload,replayDecision} from '../frontend/src/replay.js';
 export function createServer() {
   let replay=newReplay();
+  const exhibition=localCases();
   return http.createServer(async (req,res)=>{
     res.setHeader('Content-Type','application/json');
     res.setHeader('Cache-Control','no-store');
+    if(req.url.startsWith('/api/cases'))return exhibition(req,res);
+    if(req.url.startsWith('/api/cloud'))return awsBridge(req,res);
     if(req.method==='POST' && ['/api/replay','/api/replay/reset','/api/replay/decision'].includes(req.url)){
       try {
         if(req.headers['content-type']?.split(';')[0]!=='application/json') throw new Error('JSON required');

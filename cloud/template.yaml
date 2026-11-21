@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: MerchantLens simulated exhibition
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Timeout: 10
+    MemorySize: 256
+    CodeUri: ../.demo-package/
+    Tags: {Project: MerchantLens, Environment: exhibition}
+Resources:
+  Api:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Auth: {EnableIamAuthorizer: true, DefaultAuthorizer: AWS_IAM}
+      DefaultRouteSettings: {ThrottlingBurstLimit: 10, ThrottlingRateLimit: 5}
+  DeadLetters:
+    Type: AWS::SQS::Queue
+    Properties: {MessageRetentionPeriod: 345600}
+  Queue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 90
+      RedrivePolicy: {deadLetterTargetArn: !GetAtt DeadLetters.Arn, maxReceiveCount: 4}
+  Store:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: [{AttributeName: pk, AttributeType: S}, {AttributeName: sk, AttributeType: S}, {AttributeName: pending, AttributeType: S}, {AttributeName: firstReceipt, AttributeType: S}]
+      KeySchema: [{AttributeName: pk, KeyType: HASH}, {AttributeName: sk, KeyType: RANGE}]
+      GlobalSecondaryIndexes:
+        - IndexName: PendingAge
+          KeySchema: [{AttributeName: pending, KeyType: HASH}, {AttributeName: firstReceipt, KeyType: RANGE}]
+          Projection: {ProjectionType: KEYS_ONLY}
+  Artifacts:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
+      LifecycleConfiguration: {Rules: [{Id: ExpireEvidence, Status: Enabled, ExpirationInDays: 7}]}
+  Intake:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: cloud/handlers.intake
+      Environment: {Variables: {QUEUE: !Ref Queue}}
+      Policies: [{SQSSendMessagePolicy: {QueueName: !GetAtt Queue.QueueName}}]
+      Events:
+        Provider: {Type: HttpApi, Properties: {ApiId: !Ref Api, Path: /api/cases/provider, Method: POST}}
+        Evidence: {Type: HttpApi, Properties: {ApiId: !Ref Api, Path: /api/cases/evidence, Method: POST}}
+  Worker:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: cloud/handlers.worker
+      Environment: {Variables: {TABLE: !Ref Store}}
+      Policies:
+        - Statement: [{Effect: Allow, Action: ['dynamodb:GetItem','dynamodb:PutItem','dynamodb:UpdateItem'], Resource: !GetAtt Store.Arn}]
+      Events:
+        Batch:
+          Type: SQS
+          Properties: {Queue: !GetAtt Queue.Arn, BatchSize: 5, FunctionResponseTypes: [ReportBatchItemFailures], ScalingConfig: {MaximumConcurrency: 2}}
+  Cases:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: cloud/handlers.cases
+      Environment: {Variables: {TABLE: !Ref Store, ARTIFACTS: !Ref Artifacts}}
+      Policies:
+        - Statement: [{Effect: Allow, Action: ['dynamodb:GetItem','dynamodb:Query','dynamodb:PutItem'], Resource: !GetAtt Store.Arn}]
+        - Statement: [{Effect: Allow, Action: 's3:PutObject', Resource: !Sub '${Artifacts.Arn}/exports/*'}]
+      Events:
+        Read: {Type: HttpApi, Properties: {ApiId: !Ref Api, Path: /api/cases, Method: GET}}
+        Review: {Type: HttpApi, Properties: {ApiId: !Ref Api, Path: /api/cases/review, Method: POST}}
+  IntakeLogs:
+    Type: AWS::Logs::LogGroup
+    Properties: {LogGroupName: !Sub '/aws/lambda/${Intake}', RetentionInDays: 3}
+  WorkerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties: {LogGroupName: !Sub '/aws/lambda/${Worker}', RetentionInDays: 3}
+  CaseLogs:
+    Type: AWS::Logs::LogGroup
+    Properties: {LogGroupName: !Sub '/aws/lambda/${Cases}', RetentionInDays: 3}
+  Reconciler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: cloud/handlers.reconcile
+      Environment: {Variables: {TABLE: !Ref Store}}
+      Policies:
+        - Statement: [{Effect: Allow, Action: 'dynamodb:Query', Resource: !Sub '${Store.Arn}/index/PendingAge'}]
+      Events:
+        Check: {Type: ScheduleV2, Properties: {ScheduleExpression: 'rate(15 minutes)', FlexibleTimeWindow: {Mode: 'OFF'}}}
+  ReconcileLogs:
+    Type: AWS::Logs::LogGroup
+    Properties: {LogGroupName: !Sub '/aws/lambda/${Reconciler}', RetentionInDays: 3}
+  QueueAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions: [{Name: QueueName, Value: !GetAtt Queue.QueueName}]
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 120
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 2
+      TreatMissingData: notBreaching
+  DeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions: [{Name: QueueName, Value: !GetAtt DeadLetters.QueueName}]
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+Outputs:
+  Endpoint:
+    Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/cases'
