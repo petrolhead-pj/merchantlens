@@ -94,3 +94,16 @@ Both production builds passed, along with all 16 backend tests and the synthetic
 | Conflicting wallet credit | 661 ms | 2760 ms |
 
 Each measurement covers the final evidence record for one run. The loopback servers on 4173 and 4177 served the updated offline and AWS frontend builds respectively.
+
+## Jury redesign verification
+
+The payment, finding and Chocolate cake / Wallet credited comparison fit together at 1280×720. Browser captures also covered 1440×900 and 390×844. The phone canvas centers the payment and scrolls internally. [AWS-backed workbench capture](jury-workbench.png)
+
+| Final evidence receipt to render | Offline | Sydney AWS |
+| --- | ---: | ---: |
+| Cake sale with delivery | 544 ms | 2853 ms |
+| Observed wallet top-up | 272 ms | 1439 ms |
+| Unverified purpose | 129 ms | 2402 ms |
+| Cake claim with wallet credit | 553 ms | 2264 ms |
+
+One final two-tab Edge run per variant and mode. Both rehearsals observed the pending cake claim before the ledger credit, then verified duplicate confirmation, timeline navigation, node and relationship selection, explain, and retained selection, zoom and pan after late evidence. The case reopened, earlier history survived a rejected stale write, and polling recovered after a forced feed interruption. External browser requests were blocked. All 16 backend tests passed, the benchmark completed, and both production builds included the local font and storefront photograph.
