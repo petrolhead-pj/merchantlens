@@ -64,3 +64,20 @@ SAM uploaded the verified package and template under the `merchantlens-exhibitio
 Verified final state: application stack `ROLLBACK_COMPLETE`, cancelled artifact bucket and case table deleted by CloudFormation, zero exhibition queues, and no application endpoint. The SAM packaging stack is `CREATE_COMPLETE` with 3,976,717 bytes staged under the exhibition prefix. The four cloud checkout rehearsals and receipt-to-render measurements are pending an executable deployment.
 
 Repeat offline checks passed on a separate loopback port: 16/16 tests; cake 560 ms, wallet 458 ms, unverified 374 ms, conflicting wallet credit 76 ms. The browser check confirmed a prior supported decision survived reopening and rejection of a stale write. Feed interruption preserved selection and recovered on reconnect. Port 4173 remained available.
+
+## Successful Sydney retry · 22 November 2026 local time
+
+The owner confirmed saving a USD 33 project limit and disabling the early launch control. The project role could read the separate USD 10 COST budget and all four expected email alerts; the project-level settings were owner-reported. EC2 showed both instances stopped before and after the retry. After checking that the rollback had left no live application resources, the previous stack record was deleted by stack ID. A fresh add-only change set reused the staged package. Both SQS queues were created and CloudFormation reported `CREATE_COMPLETE` for `merchantlens-exhibition` in `ap-southeast-2`.
+
+The two-page Edge rehearsal used the workstation bridge to submit simulated checkouts to the deployed IAM-protected HTTP API. Each timing below is one observation from AWS intake receipt of the last evidence to the browser rendering the matching case version. It includes SQS, worker, storage, network and workbench polling, and compares AWS and workstation wall clocks.
+
+| Checkout variant | Rendered verdict | Cloud receipt to render |
+| --- | --- | ---: |
+| Cake checkout, order and simulated delivery | Cake sale supported | 2,051 ms |
+| Observed mock wallet top-up | Purpose mismatch — review | 2,393 ms |
+| Withheld checkout observation | Purpose unverified | 2,062 ms |
+| Cake checkout and merchant claim with separate simulated wallet credit | Purpose mismatch — review | 2,678 ms |
+
+The browser resent each confirmation and found one payment per case. It recorded a supported decision before submitting late wallet evidence, rendered the reopened mismatch, selected the credit through Explain this flag, received HTTP 409 on a stale analyst write, and verified that the prior history remained intact. Disconnect/reconnect preserved selection and resumed polling. The desktop and narrow viewport assertions passed.
+
+A separate signed API run (`scripts/verify-cloud-ordering.py`) confirmed early evidence in DynamoDB as pending at version 1 before even submitting payment. Confirmation cleared the pending marker and produced a version-2 mismatch. An exact replay and an alternate provider event ID for the same payment preserved the case contents. Unsigned reads were rejected and all four evidence-bucket public-access blocks were active. Final checks found one private review export, an enabled worker mapping and zero visible or in-flight DLQ messages. The offline stall remained available on 4173; the independently served AWS workbench is on 4177. [Launch and teardown](EXHIBITION.md)

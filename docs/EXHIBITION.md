@@ -4,6 +4,8 @@ Start on Node 22 or later with `npm run setup`, `npm test`, `npm run benchmark`,
 
 ## Three minutes at the stand
 
+On the exhibition laptop open [AWS workbench](http://127.0.0.1:4177/) and [Demo Lab](http://127.0.0.1:4177/?lab) in separate windows. The local server signs AWS requests with profile `merchantlens`; the checkout uses simulated funds. For Wi-Fi-free rehearsal use [offline workbench](http://127.0.0.1:4173/) and [offline checkout](http://127.0.0.1:4173/?lab). The two servers have separate case histories.
+
 1. **0:00–0:55.** Select Cake sale, buy the chocolate cake and point to the ₹500 receipt for SRB-2041. The click observer captured the visible purchase action. The order is the merchant's own claim. Send simulated delivery, select the delivery link, and record the supported outcome.
 2. **0:55–1:55.** Reset. Select Wallet top-up, set a five-second delay and top up the fictional wallet. Watch the same bakery receive a new payment. Explain this flag selects the wallet link. Compare checkout and payment references. Send duplicate confirmation and inspect history.
 3. **1:55–2:30.** Reset and select Unverified. Buy the cake. This scenario withholds the observation. The merchant order can be displayed, but independent evidence is missing. Request evidence.
@@ -13,7 +15,7 @@ All payments, wallet credits and deliveries use simulated funds and records. A c
 
 ## Cloud preview and operator settings
 
-**Approved target.** Use AWS profile `merchantlens` in `ap-southeast-2`. The USD 10 alert budget and USD 20 pre-tax project limit apply. The owner approved stopping the separate t3.large web server. Both instances are stopped with both original disks retained. Restarting that server changes the operating-cost estimate. See [inventory and deployment verification](EXHIBITION_RESULTS.md). Repeat the read-only inventory with `python scripts/compute-inventory.py --profile merchantlens --region ap-southeast-2` and the rate check with `python scripts/compute-rates.py --profile merchantlens --region ap-southeast-2 t3.large t3.micro`.
+**Approved target.** Use AWS profile `merchantlens` in `ap-southeast-2`. AWS Budgets exposes the USD 10 alert budget. The owner confirmed a separate USD 33 project spend limit and disabled the early control for new resource launches. Both EC2 instances are stopped with their original disks retained. Restarting the web server changes the operating-cost estimate. See [inventory and deployment verification](EXHIBITION_RESULTS.md).
 
 For the 100-run monthly workload below, Sydney gross usage is estimated at **USD 2–4** before credits, taxes and account-wide free allowances. The public regional catalog reports USD 1.29/million HTTP requests (~0.12 for 90,000), USD 0.1425/million DynamoDB read units (~0.29 for 2 million), USD 0.71/million write units, USD 0.20/million Lambda requests and USD 0.0000166667 per GB-second. Three full-month metrics and two alarms cost USD 1.10; 1 GB log ingestion costs USD 0.67. The range includes allowances for small queue, storage and transfer traffic. Extra open tabs and accumulated case history increase usage. Reproduce rates with `python scripts/region-prices.py ap-southeast-2` using the [AWS Price List Bulk API](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/using-the-aws-price-list-bulk-api.html).
 
@@ -43,7 +45,7 @@ The region in these local validation commands selects schemas. The deployment re
 
 After profile, budget, artifact bucket and region approval, prepare a change set:
 
-**Sydney retry and cleanup.** The initial `merchantlens-exhibition` stack rolled back after a project SCP denied creation of the SQS dead-letter queue. Check the early cost controls and confirm with the owner that queue creation is permitted before retrying. Preserve the USD 20 limit. Check stack events and resources; once the failed stack is confirmed empty and `ROLLBACK_COMPLETE`, remove that stack record with `aws cloudformation delete-stack --stack-name merchantlens-exhibition --profile merchantlens --region ap-southeast-2` and wait for `stack-delete-complete` before creating a fresh change set. The reusable artifacts are in bucket `aws-sam-cli-managed-default-samclisourcebucket-2foydrepai9p`, prefix `merchantlens-exhibition/`. On final teardown, review only that prefix for removal, including versions if applicable. The SAM-managed bucket and packaging stack may be shared with other deployments.
+**Sydney retry and cleanup.** The previous empty rollback stack record was removed by its exact stack ID. The fresh change set reused the staged template and Lambda package. The reusable artifacts are in bucket `aws-sam-cli-managed-default-samclisourcebucket-2foydrepai9p`, prefix `merchantlens-exhibition/`. On final teardown, review only that prefix for removal, including versions if applicable. The SAM-managed bucket and packaging stack may be shared with other deployments.
 
     sam deploy --no-execute-changeset --stack-name merchantlens-exhibition --s3-bucket APPROVED_ARTIFACT_BUCKET --capabilities CAPABILITY_IAM --profile PROFILE --region REGION --tags Project=MerchantLens Environment=exhibition
 
@@ -54,16 +56,18 @@ For a new stack, the expected changes are one HTTP API and stage with four IAM-p
 Review IAM, changes and charges before executing. Configure the local workstation with the actual stack endpoint and rebuild:
 
     npm install --prefix .demo-tools @aws-sdk/signature-v4 @aws-sdk/credential-providers @aws-crypto/sha256-js
-    $env:AWS_PROFILE='APPROVED_PROFILE'
-    $env:AWS_REGION='APPROVED_REGION'
-    $env:MERCHANTLENS_API='https://API_ID.execute-api.REGION.amazonaws.com/api/cases'
+    $env:AWS_PROFILE='merchantlens'
+    $env:AWS_REGION='ap-southeast-2'
+    $env:MERCHANTLENS_API='https://0ad68fbh0c.execute-api.ap-southeast-2.amazonaws.com/api/cases'
     $env:VITE_CASE_API='/api/cloud'
     npm --prefix frontend run build -- --outDir ../.demo-tools/cloud-dist
     $env:STALL_DIST=(Resolve-Path .demo-tools/cloud-dist).Path
     $env:REHEARSAL_API='/api/cloud'
     node scripts/rehearse.mjs
 
-Use `?offline` to enter the separate local rehearsal. Stop the launcher and close the tabs to stop polling. To tear down, verify the account and stack name, export needed cases, empty the stack's artifact bucket if populated, and run `sam delete --stack-name merchantlens-exhibition --profile PROFILE --region REGION`. Check for artifacts left in the packaging bucket. Review the separate budget with the owner.
+To serve the cloud workbench after the automated rehearsal, keep those environment values, set `$env:STALL_PORT='4177'`, then run `node scripts/stall.mjs`. Keep port 4173 for the separate offline stall. Browser links require this workstation's loopback bridge. After any future stack recreation obtain the new Endpoint output before relaunching.
+
+For teardown, close cloud tabs and stop the cloud launcher. Verify the account and stack name, export any needed case data, then resolve the private evidence bucket with `aws cloudformation describe-stack-resource --stack-name merchantlens-exhibition --logical-resource-id Artifacts --profile merchantlens --region ap-southeast-2`. One review export was present after rehearsal. Once approved for deletion, empty that stack bucket and run `sam delete --stack-name merchantlens-exhibition --profile merchantlens --region ap-southeast-2`. Verify stack deletion and inspect the deployment prefix in the separate SAM packaging bucket. Preserve the USD 10 budget, project settings, both stopped EC2 instances and their disks.
 
 To pause a deployed stack, stop demo intake, wait for SQS visible and in-flight counts to reach zero, then disable the reconciliation schedule in EventBridge Scheduler. Find the worker mapping UUID with `aws lambda list-event-source-mappings --function-name WORKER_PHYSICAL_NAME --region REGION --profile PROFILE` and disable it with `aws lambda update-event-source-mapping --uuid UUID --no-enabled --region REGION --profile PROFILE`. Re-enable the mapping and schedule before rehearsing again. Alarms and stored data can still incur charges while paused. Verify stack deletion and remaining S3 objects for a full teardown. Keep the account-wide budget unless the owner requests its removal. [AWS budget notification timing](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html)
 
@@ -71,4 +75,4 @@ To pause a deployed stack, stop demo intake, wait for SQS visible and in-flight 
 
 Baseline 8c6f040, Node 22.16.0. All 14 original tests passed; benchmark reviewed 4/16 synthetic cases, detecting 4 planted mismatches versus 1 by volume. Initial build attempted during dependency installation could not find Vite. Post-install production build passed with the existing large graph chunk warning. The added regression test covers evidence-first, duplicate payment, late conflict, reopening, historical decisions, stale version and mismatched references.
 
-Install the optional browser runner with `npm install --prefix .demo-tools playwright-core`. For an offline rerun use a fresh shell with the default local API, run `npm --prefix frontend run build -- --outDir ../.demo-tools/rehearsal-dist`, set `$env:STALL_DIST=(Resolve-Path .demo-tools/rehearsal-dist).Path`, then run `node scripts/rehearse.mjs`. It launches a separate test server on 4174, drives two browser pages, denies external browser requests, measures each case by checkout reference and version, and verifies disconnect/reconnect and viewport overflow. The running stall on 4173 retains its original in-memory cases. For an interactive cloud rehearsal, use the cloud build settings above, set `$env:STALL_PORT='4175'` and run `npm run stall`. The deployed backend and its latency require separate verification. [Observed results](EXHIBITION_RESULTS.md)
+Install the optional browser runner with `npm install --prefix .demo-tools playwright-core`. For an offline rerun use a fresh shell with the default local API, run `npm --prefix frontend run build -- --outDir ../.demo-tools/rehearsal-dist`, set `$env:STALL_DIST=(Resolve-Path .demo-tools/rehearsal-dist).Path`, then run `node scripts/rehearse.mjs`. It launches a separate test server on 4174, drives two browser pages, denies external browser requests, measures each case by reference and version, and verifies disconnect/reconnect and viewport overflow. The running stall on 4173 retains its original in-memory cases. [Local and deployed rehearsal results](EXHIBITION_RESULTS.md)
