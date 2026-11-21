@@ -112,6 +112,9 @@ try {
   await board.locator("aside strong").filter({hasText:"Record supported outcome"}).waitFor();
   const endpoint=origin+(process.env.REHEARSAL_API || "/api/cases");
   const priorVersion=Number(await board.locator("aside").getAttribute("data-version"));
+  const readSelected=async()=> (await (await board.request.get(endpoint)).json()).find(c=>c.id===cake.id);
+  const reviewed=await readSelected();
+  assert.equal(reviewed.outcome,"Record supported outcome");
   const late={...cake.records.find(r=>r.event.kind==="payment").event,id:crypto.randomUUID(),time:new Date().toISOString(),kind:"credit"};
   assert.ok((await board.request.post(endpoint+"/evidence",{data:late})).ok());
   await board.locator("aside h2").filter({hasText:"Purpose mismatch — review"}).waitFor();
@@ -119,6 +122,11 @@ try {
   assert.equal(await board.locator("aside h3").innerText(),"credited wallet");
   const stale=await board.request.post(endpoint+"/review",{data:{ref:cake.id,version:priorVersion,action:"Escalate"}});
   assert.equal(stale.status(),409);
+  const reopened=await readSelected();
+  assert.equal(reopened.outcome,"Open");
+  assert.equal(reopened.version,priorVersion+1);
+  assert.deepEqual(reopened.history.slice(0,-1),reviewed.history);
+  console.log("Late wallet credit reopened the case; prior decision history survived the rejected stale write.");
   const scope = await board.locator("aside").getAttribute("data-case");
   const feedPattern = "**" + (process.env.REHEARSAL_API || "/api/cases");
   await board.route(feedPattern, (route) => route.abort());
