@@ -1,0 +1,257 @@
+.exhibit {
+  min-height: 100vh;
+  background: #f4f5f3;
+  color: #172f37;
+  font:
+    15px/1.5 system-ui,
+    sans-serif;
+  padding: 0 2.5vw 30px;
+}
+.exhibit * {
+  box-sizing: border-box;
+}
+.exhibit header,
+.rail,
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.exhibit header {
+  padding: 16px 0;
+  border-bottom: 1px solid #c7d1cf;
+}
+.exhibit header strong {
+  font-size: 24px;
+  letter-spacing: -1px;
+}
+.exhibit header span {
+  margin-right: auto;
+}
+.exhibit a {
+  color: #17655d;
+}
+.exhibit small,
+.exhibit dt {
+  display: block;
+  color: #526964;
+  font-size: 12px;
+}
+.heading {
+  flex-wrap: wrap;
+  padding: 24px 0;
+}
+.heading small {
+  width: 100%;
+  letter-spacing: 2px;
+}
+.exhibit h1,
+.exhibit h2,
+.exhibit h3,
+.exhibit p {
+  margin: 0 0 12px;
+}
+.heading h1 {
+  font-size: 36px;
+  line-height: 1;
+  margin: 0;
+}
+.heading span {
+  margin-left: auto;
+}
+.workgrid {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.72fr) minmax(0, 2.8fr) minmax(
+      245px,
+      1fr
+    );
+  gap: 14px;
+  align-items: start;
+}
+.workgrid > *,
+.lab {
+  border: 1px solid #cbd6d3;
+  border-radius: 12px;
+  background: white;
+  padding: 18px;
+  min-width: 0;
+}
+.exhibit button,
+.exhibit select,
+.exhibit input {
+  font: inherit;
+  border: 1px solid #abbbb7;
+  border-radius: 6px;
+  background: white;
+  color: #193e39;
+  padding: 7px 10px;
+  margin: 3px;
+  cursor: pointer;
+}
+.exhibit button:disabled {
+  opacity: 0.5;
+}
+.exhibit :focus-visible {
+  outline: 3px solid #e69832;
+  outline-offset: 2px;
+}
+.exhibit nav button,
+.exhibit nav select {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 8px 0;
+}
+.exhibit nav .active {
+  background: #e0f1eb;
+  border-left: 4px solid #197368;
+}
+.workgrid .canvas {
+  background: #101f32;
+  color: #eff7f6;
+  padding: 20px;
+}
+.canvas p,
+.canvas span {
+  color: #b3c8d4;
+}
+.rail h2 {
+  margin-right: auto;
+}
+.canvas svg {
+  display: block;
+  width: 100%;
+  touch-action: none;
+}
+.canvas line {
+  stroke: #74bdb6;
+  stroke-width: 2;
+}
+.canvas text {
+  fill: #f4f8fa;
+  text-anchor: middle;
+  font: 14px system-ui;
+  paint-order: stroke;
+  stroke: #101f32;
+  stroke-width: 3px;
+}
+.canvas rect {
+  fill: #20374d;
+  stroke: #87b3ba;
+}
+.canvas rect.chosen {
+  stroke: #f1ba66;
+  stroke-width: 3;
+}
+.canvas rect.conflict {
+  stroke: #f0937d;
+  stroke-width: 3;
+}
+.canvas g[role] {
+  cursor: pointer;
+}
+.exhibit .canvas button {
+  background: #23384a;
+  border-color: #4e6573;
+  color: white;
+}
+.exhibit dd {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+.exhibit summary {
+  cursor: pointer;
+  margin-top: 10px;
+}
+.exhibit hr {
+  border: 0;
+  border-top: 1px solid #d3ddda;
+  margin: 16px 0;
+}
+.lab {
+  max-width: 580px;
+  margin: 36px auto;
+}
+.lab label {
+  display: block;
+  margin: 12px 0;
+}
+.empty {
+  grid-column: span 2;
+}
+.exhibit ol {
+  padding-left: 18px;
+}
+.canvas small {
+  color: #bdcbd4;
+}
+@media (max-width: 950px) {
+  .workgrid {
+    grid-template-columns: 180px minmax(0, 1fr);
+  }
+  .workgrid aside {
+    grid-column: 2;
+  }
+  .empty {
+    grid-column: auto;
+  }
+}
+@media (max-width: 660px) {
+  .workgrid {
+    display: flex;
+    flex-direction: column;
+  }
+  .workgrid > * {
+    width: 100%;
+  }
+  .exhibit header,
+  .rail {
+    flex-wrap: wrap;
+  }
+  .exhibit header span {
+    width: 100%;
+  }
+  .canvas svg {
+    min-height: 230px;
+  }
+  .exhibit nav {
+    max-height: 220px;
+    overflow: auto;
+  }
+}
+body {
+  margin: 0;
+}
+.exhibit .warn {
+  color: #953d30;
+}
+.exhibit .pending {
+  color: #815c11;
+}
+.exhibit .supported {
+  color: #146b5e;
+}
+.exhibit .canvas line.conflicting {
+  stroke: #f38f7a;
+  stroke-width: 3;
+}
+.exhibit .canvas line.related {
+  stroke: #d9ad6d;
+  stroke-width: 2.5;
+}
+.canvas g[role="button"] text {
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .canvas g[role="button"] {
+    animation: arrive 0.85s ease-out;
+  }
+  @keyframes arrive {
+    from {
+      opacity: 0.4;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
