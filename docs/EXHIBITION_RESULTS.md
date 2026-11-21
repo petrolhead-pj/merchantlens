@@ -39,4 +39,12 @@ The checkout was clean on `feature/exhibition-checkout` at `96976c8`. The stall 
 
 Final local receipt-to-inspector times on this run were **529 ms** for the delivered cake, **479 ms** for the observed wallet top-up, **140 ms** for the withheld observation and **826 ms** for the conflicting wallet credit. The earlier 455–828 ms range above is a separate local rehearsal. No cloud timing has been measured.
 
-The account-specific deployment preview, budget and cloud rehearsal await an approved profile, region, budget recipient and owner authorization. Account eligibility, credits, expiry, permissions and billing delivery remain unverified. All payment confirmations, courier deliveries and wallet postings are simulated. Browser observations come from visible, trusted clicks captured in the controlled lab. PayU sandbox callbacks, Neptune and ML remain outside this demonstration. See [commands, cost assumptions and teardown](EXHIBITION.md).
+## Authorized AWS preflight · 21 November 2026
+
+STS resolved profile `merchantlens` to the approved account ending in 3867, using AccountFullAccessRole. Free Tier reported an active PAID plan and USD 138.074979 remaining. The plan was unchanged. Its response omitted an expiry date. Billing GetCredits returned AccessDeniedException with an explicit deny in an organization service control policy. Owner confirmation of the credit expiry is outstanding.
+
+AWS Budgets verified MerchantLens-Account-Monthly, a USD 10 monthly account-wide COST budget excluding credits, and returned the specified EMAIL subscriber for all four absolute-value thresholds: actual 5, 8 and 10, forecast 10. This verifies configuration; notification delivery depends on AWS evaluating a threshold.
+
+In ap-southeast-2, CloudFormation validated the application template and reported no existing merchantlens-exhibition stack. Read checks succeeded for Lambda (400 concurrent executions), API Gateway v2, SQS, DynamoDB, S3, Scheduler, CloudWatch, Logs and IAM. These checks establish regional service access; resource creation and role passing remain to be tested by deployment.
+
+**Cloud rehearsal pending.** No application stack was provisioned and there are no AWS receipt-to-render measurements. The latency tables above are local results. All payment confirmations, courier deliveries and wallet postings use simulated funds. Browser observations come from visible, trusted clicks in the controlled lab. See [commands, Sydney estimate and teardown](EXHIBITION.md).
