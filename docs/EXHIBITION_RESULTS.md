@@ -81,3 +81,16 @@ The two-page Edge rehearsal used the workstation bridge to submit simulated chec
 The browser resent each confirmation and found one payment per case. It recorded a supported decision before submitting late wallet evidence, rendered the reopened mismatch, selected the credit through Explain this flag, received HTTP 409 on a stale analyst write, and verified that the prior history remained intact. Disconnect/reconnect preserved selection and resumed polling. The desktop and narrow viewport assertions passed.
 
 A separate signed API run (`scripts/verify-cloud-ordering.py`) confirmed early evidence in DynamoDB as pending at version 1 before even submitting payment. Confirmation cleared the pending marker and produced a version-2 mismatch. An exact replay and an alternate provider event ID for the same payment preserved the case contents. Unsigned reads were rejected and all four evidence-bucket public-access blocks were active. Final checks found one private review export, an enabled worker mapping and zero visible or in-flight DLQ messages. The offline stall remained available on 4173; the independently served AWS workbench is on 4177. [Launch and teardown](EXHIBITION.md)
+
+## Exhibition workbench redesign verification
+
+Both production builds passed, along with all 16 backend tests and the synthetic benchmark. The two-tab Edge rehearsal passed at 1440×900, 1280×720 and 390×844. The offline rehearsal blocked external browser requests. Both runs verified duplicate confirmation, late wallet evidence reopening a supported outcome, preserved history, stale-write rejection and feed disconnect/recovery.
+
+| Checkout | Local receipt to render | AWS receipt to render |
+| --- | ---: | ---: |
+| Cake sale | 366 ms | 2250 ms |
+| Wallet top-up | 640 ms | 2412 ms |
+| Unverified | 136 ms | 1291 ms |
+| Conflicting wallet credit | 661 ms | 2760 ms |
+
+Each measurement covers the final evidence record for one run. The loopback servers on 4173 and 4177 served the updated offline and AWS frontend builds respectively.

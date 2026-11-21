@@ -42,15 +42,15 @@ const relations = {
   profile: "declares",
 };
 const positions = {
-  storefront: [115, 25],
-  cake: [115, 95],
-  topup: [115, 95],
-  order: [115, 245],
-  payment: [330, 164],
-  merchant: [545, 95],
-  profile: [545, 245],
-  credit: [330, 325],
-  delivery: [115, 375],
+  storefront: [90, 37],
+  cake: [90, 110],
+  topup: [90, 110],
+  order: [90, 229],
+  payment: [330, 166],
+  merchant: [567, 110],
+  profile: [567, 229],
+  credit: [330, 286],
+  delivery: [90, 304],
   refund: [330, 42],
 };
 const statuses = [
@@ -60,6 +60,15 @@ const statuses = [
   "Cake sale supported",
 ];
 const stamp = (t) => new Date(t).toLocaleTimeString();
+const tone = (c) => c.status === statuses[1] ? "conflict" : c.status === statuses[3] ? "verified" : "waiting";
+const caption = {
+  storefront: "Storefront", payment: "Confirmed payment", cake: "Browser observation",
+  topup: "Browser observation", order: "Merchant claim", delivery: "Fulfilment",
+  credit: "Wallet ledger", refund: "Provider record", merchant: "Recipient", profile: "Declared purpose",
+};
+function LensMark() {
+  return <svg className="lensmark" viewBox="0 0 36 36" aria-hidden="true"><rect width="36" height="36" rx="11" fill="#d5f8a4"/><g fill="none" stroke="#182c24" strokeWidth="2.4"><circle cx="15" cy="16" r="8"/><path d="m21 22 7 7M11 18l4-5 4 2 5-6"/></g></svg>;
+}
 function Lab() {
   const [scenario, setScenario] = useState("Cake sale"),
     [delay, setDelay] = useState(4),
@@ -110,7 +119,7 @@ function Lab() {
   }
   return (
     <section className="lab" ref={form}>
-      <small>DEMO LAB / SIMULATED FUNDS</small>
+      <small>DEMO LAB　/　SIMULATED FUNDS</small>
       <h1>Checkout counter</h1>
       <p>Both checkouts pay Sunrise Bakery · SRB-2041.</p>
       <label>
@@ -140,7 +149,7 @@ function Lab() {
           onChange={(e) => setDelay(Math.min(60, Math.max(0, +e.target.value)))}
         />
       </label>
-      <h2>
+      <div className="checkout-ticket"><small>PAYMENT TO　 /　 SRB-2041</small><h2>
         {scenario === "Wallet top-up" ? "Fictional wallet" : "Sunrise Bakery"}
       </h2>
       <button
@@ -152,7 +161,7 @@ function Lab() {
         {scenario === "Wallet top-up"
           ? "Top up demo wallet · ₹500"
           : "Buy chocolate cake · ₹500"}
-      </button>
+      </button></div>
       <p role="status">{message}</p>
       {run && (
         <>
@@ -236,14 +245,11 @@ function Evidence({ c }) {
             {timeline ? "Graph" : "Timeline"}
           </button>
         </div>
-        <p>
-          Sunrise Bakery <span> / ₹500.00 INR</span>
-        </p>
         {timeline ? (
           details
         ) : (
-          <svg
-            viewBox="0 0 660 430"
+          <div className="graph-viewport" tabIndex="0" aria-label="Scrollable evidence map"><svg
+            viewBox="0 0 660 345"
             aria-label="Payment evidence graph"
             onPointerDown={(e) => {
               if (e.target.tagName === "svg") {
@@ -315,18 +321,19 @@ function Evidence({ c }) {
                             ? "conflict"
                             : ""
                       }
-                      x="-70"
-                      y="-21"
-                      width="140"
-                      height="42"
+                      x={n.key === "payment" ? -76 : -70}
+                      y={n.key === "payment" ? -30 : -21}
+                      width={n.key === "payment" ? 152 : 140}
+                      height={n.key === "payment" ? 60 : 42}
                       rx="7"
                     />
-                    <text y="5">{labels[n.key]}</text>
+                    <text className="node-caption" y="-5">{caption[n.key]}</text>
+                    <text className={n.key === "payment" ? "node-amount" : "node-name"} y={n.key === "payment" ? 20 : 13}>{n.key === "payment" ? "₹500.00" : labels[n.key]}</text>
                   </g>
                 );
               })}
             </g>
-          </svg>
+          </svg></div>
         )}
         <div className="rail">
           <button onClick={() => scale(Math.max(0.6, zoom - 0.2))}>−</button>
@@ -357,7 +364,7 @@ function Evidence({ c }) {
         </details>
       </section>
       <aside data-case={c.id} data-version={c.version}>
-        <small>CASE INSPECTOR</small>
+        <small>CASE FINDING</small>
         <h2
           className={
             c.status === statuses[1]
@@ -372,7 +379,8 @@ function Evidence({ c }) {
         <p aria-live="polite">{c.why}</p>
         <hr />
         <h3>{selected.startsWith("edge/") ? relations[key] : labels[key]}</h3>
-        <dl>
+        <p className="provenance">{record.source}</p>
+        <details><summary>Record IDs &amp; timestamps</summary><dl>
           {Object.entries({
             Source: record.source,
             ...(record.event.label
@@ -391,7 +399,7 @@ function Evidence({ c }) {
               <dd>{v}</dd>
             </React.Fragment>
           ))}
-        </dl>
+        </dl></details>
         <hr />
         <strong>{c.outcome}</strong>
         <div>
@@ -463,8 +471,8 @@ export default function Exhibition() {
   return (
     <main className="exhibit">
       <header>
-        <strong>MerchantLens</strong>
-        <span>{mode} · Simulated payments</span>
+        <LensMark/><strong>MerchantLens</strong>
+        <span className="mode-tag">{mode} · Simulated funds</span>
         <a
           href={endpoint === "/api/cases" ? "?lab&offline" : "?lab"}
           target="_blank"
@@ -479,8 +487,9 @@ export default function Exhibition() {
       ) : (
         <>
           <div className="heading">
-            <small>PAYMENT RISK OPERATIONS</small>
-            <h1>Case workbench</h1>
+            <div><small>RISK OPERATIONS　 /　 CASE WORKBENCH</small>
+            <h1>{c ? "Sunrise Bakery" : "Payment investigations"}</h1>
+            {c && <p className="case-meta">Receiving merchant <b>SRB-2041</b><i/> Confirmed payment <b>₹500.00</b></p>}</div>
             <span role="status">
               {state}{" "}
               {state === "Feed stale" && (
@@ -490,7 +499,7 @@ export default function Exhibition() {
           </div>
           <div className="workgrid">
             <nav>
-              <h2>Cases</h2>
+              <h2>Case queue <em>{list.length}</em></h2>
               <select
                 aria-label="Filter cases"
                 value={filter}
@@ -506,11 +515,11 @@ export default function Exhibition() {
                   key={r.id}
                   onClick={() => choose(r.id)}
                 >
-                  <b>Sunrise Bakery · ₹500</b>
+                  <b>Sunrise Bakery <span>₹500</span></b>
                   <small>
                     {stamp(r.records[0].received)} · {r.id.slice(0, 6)}
                   </small>
-                  {r.status}
+                  <span className={"badge " + tone(r)}>{r.status}</span>
                 </button>
               ))}
             </nav>
@@ -518,10 +527,10 @@ export default function Exhibition() {
               <Evidence key={c.id} c={c} />
             ) : (
               <section className="empty">
-                <h2>
+                <div className="empty-symbol" aria-hidden="true">⌖</div><h2>
                   {state === "Connecting"
                     ? "Loading cases…"
-                    : "No matching cases"}
+                    : cases.length ? "No matching cases" : "Awaiting the first payment"}
                 </h2>
                 <p>Open the Demo Lab and make a simulated ₹500 purchase.</p>
                 <a
