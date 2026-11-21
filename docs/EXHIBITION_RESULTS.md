@@ -41,10 +41,16 @@ Final local receipt-to-inspector times on this run were **529 ms** for the deliv
 
 ## Authorized AWS preflight · 21 November 2026
 
-STS resolved profile `merchantlens` to the approved account ending in 3867, using AccountFullAccessRole. Free Tier reported an active PAID plan and USD 138.074979 remaining. The plan was unchanged. Its response omitted an expiry date. Billing GetCredits returned AccessDeniedException with an explicit deny in an organization service control policy. Owner confirmation of the credit expiry is outstanding.
+STS resolved profile `merchantlens` to Blank Canvas, ending in 3867, using AccountFullAccessRole. Free Tier reported an active PAID plan and USD 138.074979 remaining. The owner confirmed in Billing that all three active credits expire on 20 November 2027 at 15:55 UTC.
 
 AWS Budgets verified MerchantLens-Account-Monthly, a USD 10 monthly account-wide COST budget excluding credits, and returned the specified EMAIL subscriber for all four absolute-value thresholds: actual 5, 8 and 10, forecast 10. This verifies configuration; notification delivery depends on AWS evaluating a threshold.
 
 In ap-southeast-2, CloudFormation validated the application template and reported no existing merchantlens-exhibition stack. Read checks succeeded for Lambda (400 concurrent executions), API Gateway v2, SQS, DynamoDB, S3, Scheduler, CloudWatch, Logs and IAM. These checks establish regional service access; resource creation and role passing remain to be tested by deployment.
 
 **Cloud rehearsal pending.** No application stack was provisioned and there are no AWS receipt-to-render measurements. The latency tables above are local results. All payment confirmations, courier deliveries and wallet postings use simulated funds. Browser observations come from visible, trusted clicks in the controlled lab. See [commands, Sydney estimate and teardown](EXHIBITION.md).
+
+The owner reported a USD 20 project limit and USD 2.72 spent (EC2 2.60, VPC 0.12, S3 0.00). In Sydney the running Linux t3.large costs USD 0.1056/hour; its automatically assigned public IPv4 costs 0.005/hour. The stopped Linux t3.micro has no current compute or IPv4 cost. Each instance retains one 8 GiB gp3 root disk at USD 0.096/GiB-month (0.768 per disk per month). Both disks use baseline IOPS and throughput. The running server averaged approximately 0.14% CPU over 24 hourly samples and exchanged traffic; its other users or dependencies have not been established. No Auto Scaling membership was found.
+
+The observed bill is consistent with about a day of running the large instance and its address plus disk and possible earlier micro usage. Cost Explorer returned no service line items through November 20 and insufficient history for a forecast, so individual historical charges cannot be allocated exactly. Sydney inventory returned no Elastic IP allocations, NAT gateways, VPC endpoints, VPN connections, transit attachments, load balancers or owned EBS snapshots. Reads in the 16 other enabled regions were denied. The SAM application has no dependency on either instance, their volumes or their VPC.
+
+At roughly USD 2.70/day including storage, continuing for the remaining nine-plus days would put November spend at about USD 27–28 before adding MerchantLens. The current configuration fails the USD 20 deployment condition. A stop of the large instance would release the automatic public address and save USD 2.65/day, leaving both volumes at USD 1.54/month combined. Stopping or removing resources requires separate owner approval.
