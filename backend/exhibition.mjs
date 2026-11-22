@@ -55,7 +55,7 @@ export function validate(e) {
   )
     throw Error("Invalid record identity, merchant, amount or event time");
 }
-export function append(previous, e, received = new Date().toISOString()) {
+export function append(previous, e, received = new Date().toISOString(), source = sources[e.kind]) {
   validate(e);
   const c = previous ?? {
     id: e.ref,
@@ -65,7 +65,7 @@ export function append(previous, e, received = new Date().toISOString()) {
     outcome: "Open",
   };
   const duplicate = c.records.find(
-    (r) => r.source === sources[e.kind] && r.event.id === e.id,
+    (r) => r.source === source && r.event.id === e.id,
   );
   if (duplicate) {
     if (!isDeepStrictEqual(duplicate.event, e))
@@ -82,7 +82,7 @@ export function append(previous, e, received = new Date().toISOString()) {
     return c;
   const records = [
     ...c.records,
-    { source: sources[e.kind], event: e, received },
+    { source, event: e, received },
   ];
   const verdict = checkoutVerdict(records.map((r) => r.event.kind));
   const reopened =
@@ -175,11 +175,11 @@ export function review(c, { version, action }) {
     ],
   };
 }
-export function localCases() {
+export function localCases({ ownsSandbox = () => false } = {}) {
   const cases = new Map(),
     identities = new Map(),
     payments = new Map();
-  return async (req, res) => {
+  async function handle(req, res) {
     try {
       if (req.method === "GET" && req.url === "/api/cases") {
         res.end(
@@ -206,6 +206,8 @@ export function localCases() {
         cases.set(e.ref, review(cases.get(e.ref), e));
       } else {
         validate(e);
+        if (ownsSandbox(e.ref) || cases.get(e.ref)?.sandbox)
+          throw Error("Sandbox evidence comes from the checkout integration");
         const provider = ["payment", "refund"].includes(e.kind);
         if (
           req.url !== (provider ? "/api/cases/provider" : "/api/cases/evidence")
@@ -226,5 +228,13 @@ export function localCases() {
       res.writeHead(409);
       res.end(JSON.stringify({ error: error.message }));
     }
+  }
+  handle.recordSandbox = ({ deposit, payment, txnid, providerId }) => {
+    if (cases.get(payment.ref)?.sandbox) return;
+    const received = new Date().toISOString();
+    const pending = append(undefined, deposit, received, "Test betting page");
+    const confirmed = append(pending, payment, received, "PayU sandbox verification");
+    cases.set(payment.ref, { ...confirmed, sandbox: { txnid, providerId } });
   };
+  return handle;
 }

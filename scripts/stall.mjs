@@ -10,10 +10,10 @@ try{await access(resolve(root,'index.html'));}catch{console.error('Build first w
 const api=createServer();
 const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'};
 http.createServer(async(req,res)=>{
-  if(req.url.startsWith('/api/')){api.emit('request',req,res);return;}
+  if(req.url.startsWith('/api/') || req.url === '/betting-demo'){api.emit('request',req,res);return;}
   try{
     const path=new URL(req.url,'http://localhost').pathname;
-    const file=resolve(root,'.'+(path==='/'?'/index.html':decodeURIComponent(path)));
+    const file=resolve(root,'.'+(['/','/exhibition'].includes(path)?'/index.html':decodeURIComponent(path)));
     if(!file.startsWith(resolve(root)+sep))throw new Error('outside');
     const body=await readFile(file);res.setHeader('Content-Type',types[extname(file)]||'application/octet-stream');res.end(body);
   }catch{res.writeHead(404);res.end('Unavailable');}

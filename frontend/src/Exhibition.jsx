@@ -1,384 +1,174 @@
 import React, { useEffect, useRef, useState } from "react";
 import "@fontsource-variable/instrument-sans";
 import {
-  Aperture,
-  ArrowUpRight,
-  ChevronDown,
-  Inbox,
-  SlidersHorizontal,
-  Wallet,
-  CircleCheck,
+  Aperture, ArrowLeft, ArrowRight, CakeSlice, ChevronDown, GitFork,
+  Radio, SlidersHorizontal, Truck, Wallet, X,
 } from "lucide-react";
-import { Investigation } from "./Investigation.jsx";
-import "./exhibition.css";
+import { api, endpoint, newEvent, send, submitCheckout, useCaseFeed } from "./case-feed.js";
 import { observeCheckout } from "./checkout-observer.js";
+import { CaseTrace, findingFor } from "./CaseTrace.jsx";
+import "./workbench.css";
 
-const endpoint = new URLSearchParams(location.search).has("offline")
-  ? "/api/cases"
-  : import.meta.env.VITE_CASE_API || "/api/cases";
-const mode = endpoint === "/api/cases" ? "Local rehearsal" : "AWS feed";
-async function api(path = "", body) {
-  const response = await fetch(endpoint + path, {
-    method: body ? "POST" : "GET",
-    headers: body ? { "Content-Type": "application/json" } : {},
-    credentials: "same-origin",
-    signal: AbortSignal.timeout(8000),
-    body: body && JSON.stringify(body),
-  });
-  const value = await response.json();
-  if (!response.ok) throw Error(value.error || "Feed unavailable");
-  return value;
-}
-const statuses = [
-  "All cases",
-  "Purpose mismatch — review",
-  "Purpose unverified",
-  "Cake sale supported",
+const query = new URLSearchParams(location.search);
+const offline = query.has("offline") ? "&offline" : "";
+const presenterScenarios = [
+  ["Unverified", "Run missing-evidence checkout"],
+  ["Conflicting wallet credit", "Run conflicting wallet credit"],
 ];
-const stamp = (t) => new Date(t).toLocaleTimeString();
-const tone = (c) =>
-  c.status === statuses[1]
-    ? "conflict"
-    : c.status === statuses[3]
-      ? "verified"
-      : "waiting";
-function Lab() {
-  const [scenario, setScenario] = useState("Cake sale"),
-    [delay, setDelay] = useState(4),
-    [run, setRun] = useState(null),
-    [message, setMessage] = useState("Ready for checkout"),
-    [busy, setBusy] = useState(false);
-  const observer = useRef(null),
-    form = useRef(null);
+
+function Checkout({ scenario, delay, busy, onCheckout, onClose, modal }) {
+  const form = useRef(null);
+  const observer = useRef(null);
+  const [ref] = useState(() => crypto.randomUUID());
+  const [payment] = useState(() => crypto.randomUUID());
+  const wallet = scenario === "Wallet top-up";
+  useEffect(() => observeCheckout(form.current, (click) => { observer.current = click; }), []);
+
+  return (
+    <section className="ml-shop" ref={form}>
+      {wallet ? <div className="ml-wallet-art"><Wallet size={62} /><span>Test wallet</span></div>
+        : <img src={import.meta.env.BASE_URL + "chocolate-cake.jpg"} alt="Chocolate layer cake with chocolate frosting" />}
+      <div className="ml-shop-copy">
+        {modal && <button className="ml-close" aria-label="Close checkout" onClick={onClose}><X size={19} /></button>}
+        <span className="ml-kicker">Simulated checkout</span>
+        <h1 id="ml-checkout-title">{wallet ? "Wallet top-up" : "Chocolate cake"}</h1>
+        <p>{wallet ? "Add ₹500 in simulated funds to the test wallet." : "Chocolate sponge layered with cocoa frosting."}</p>
+        <dl className="ml-total"><dt>Payment recipient</dt><dd>Sunrise Bakery</dd><dt>Total</dt><dd>₹500.00</dd></dl>
+        <button className="ml-primary" data-ref={ref} data-payment={payment} disabled={busy}
+          onClick={() => onCheckout({ scenario, delay, ref, payment, click: observer.current })}>
+          {wallet ? "Top up demo wallet · ₹500" : "Buy chocolate cake · ₹500"}
+        </button>
+        <button className="ml-return" onClick={onClose}><ArrowLeft size={15} /> Back to workbench</button>
+      </div>
+    </section>
+  );
+}
+
+export default function Exhibition({ onBack } = {}) {
+  const Workbench = onBack ? "section" : "main";
+  const standalone = !onBack && query.has("lab");
+  const [draft, setDraft] = useState(standalone ? "Cake sale" : null);
+  const [delay, setDelay] = useState(4);
+  const [id, setId] = useState(query.get("case") || "");
+  const [busy, setBusy] = useState(false);
+  const [deliveryRequests, setDeliveryRequests] = useState({});
+  const [message, setMessage] = useState("");
+  const dialog = useRef(null);
+  const { cases, state } = useCaseFeed();
+  const current = id ? cases.find((entry) => entry.id === id) : cases[0];
+  const paid = current?.nodes.find((record) => record.key === "payment")?.event;
+  const canDeliver = findingFor(current).waiting === "delivery";
+  const boardLink = current ? `?case=${current.id}${offline}` : offline ? "?offline" : "/";
+
+  function closeCheckout() {
+    if (standalone) location.href = boardLink;
+    else dialog.current.close();
+  }
+
   useEffect(() => {
-    return observeCheckout(form.current, (observation) => {
-      observer.current = observation;
-    });
-  }, []);
-  const [ref, setRef] = useState(() => crypto.randomUUID());
-  const [payment, setPayment] = useState(() => crypto.randomUUID());
-  const send = (e) => api(e.kind === "payment" ? "/provider" : "/evidence", e);
-  async function checkout() {
+    if (!standalone && draft && !dialog.current.open) dialog.current.showModal();
+  }, [draft, standalone]);
+
+  async function checkout({ scenario, delay, ref, payment, click }) {
     setBusy(true);
-    const base = {
-      ref,
-      payment,
-      amount: 50000,
-      currency: "INR",
-      merchant: "SRB-2041",
-    };
-    const event = (kind, time = new Date().toISOString()) => ({
-      ...base,
-      id: crypto.randomUUID(),
-      kind,
-      time,
-    });
-    const paid = event("payment"),
-      click = observer.current;
+    setMessage("");
     try {
-      await send(paid);
-      setRun(paid);
-      setMessage("Payment confirmed · waiting for evidence");
-      if (scenario === "Conflicting wallet credit") await send(event("order"));
-      await new Promise((resolve) => setTimeout(resolve, delay * 1000));
-      if (["Cake sale", "Unverified"].includes(scenario))
-        await send(event("order"));
-      if (scenario !== "Unverified" && click?.ref === ref) await send(click);
-      if (scenario === "Conflicting wallet credit") await send(event("credit"));
-      setMessage("Run received · inspect the workbench");
-    } catch (e) {
-      setMessage(e.message);
+      await submitCheckout({ scenario, delay, ref, payment, click }, () => {
+        setId(ref);
+        if (!standalone && dialog.current.open) dialog.current.close();
+      });
+    } catch (error) {
+      setMessage(error.message);
     } finally {
       setBusy(false);
     }
   }
-  return (
-    <section className="lab" ref={form}>
-      <div className="shop">
-        {scenario === "Wallet top-up" ? (
-          <div className="wallet-art">
-            <Wallet size={60} />
-            <span>Demo wallet</span>
-            <b>₹500</b>
-            <small>Simulated credit</small>
-          </div>
-        ) : (
-          <img
-            className="product"
-            src="/chocolate-cake.jpg"
-            alt="Chocolate layer cake with chocolate frosting"
-          />
-        )}
-        <div className="product-info">
-          <small>
-            {scenario === "Wallet top-up"
-              ? "Fictional wallet"
-              : "Sunrise Bakery"}
-          </small>
-          <h1>
-            {scenario === "Wallet top-up" ? "Wallet top-up" : "Chocolate cake"}
-          </h1>
-          <p>
-            {scenario === "Wallet top-up"
-              ? "Add simulated funds to your demo wallet."
-              : "Chocolate sponge layered with rich cocoa frosting."}
-          </p>
-          <div className="total">
-            <span>Checkout total</span>
-            <b>₹500.00</b>
-          </div>
-          <button
-            data-ref={ref}
-            data-payment={payment}
-            disabled={busy || !!run}
-            onClick={checkout}
-          >
-            {scenario === "Wallet top-up"
-              ? "Top up demo wallet · ₹500"
-              : "Buy chocolate cake · ₹500"}
-          </button>
-          <p className="checkout-state" role="status">
-            {run && <CircleCheck />}
-            {message}
-          </p>
-          {run && (
-            <a
-              href={`?case=${ref}${endpoint === "/api/cases" ? "&offline" : ""}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open matching workbench ↗
-            </a>
-          )}
-          <footer>
-            Paid to Sunrise Bakery · SRB-2041
-            <br />
-            Simulated funds
-          </footer>
-        </div>
-      </div>
-      <details className="presenter">
-        <summary>
-          <SlidersHorizontal /> Presenter controls <ChevronDown />
-        </summary>
-        <div>
-          <label>
-            Scenario
-            <select
-              value={scenario}
-              disabled={busy || !!run}
-              onChange={(e) => setScenario(e.target.value)}
-            >
-              {[
-                "Cake sale",
-                "Wallet top-up",
-                "Conflicting wallet credit",
-                "Unverified",
-              ].map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Evidence delay (seconds)
-            <input
-              type="number"
-              min="0"
-              max="60"
-              value={delay}
-              onChange={(e) =>
-                setDelay(Math.min(60, Math.max(0, +e.target.value)))
-              }
-            />
-          </label>
-          {run && (
-            <>
-              <button
-                disabled={busy}
-                onClick={() =>
-                  send(run)
-                    .then(() => setMessage("Duplicate acknowledged"))
-                    .catch((e) => setMessage(e.message))
-                }
-              >
-                Send duplicate confirmation
-              </button>
-              {scenario === "Cake sale" && (
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    send({
-                      ...run,
-                      id: crypto.randomUUID(),
-                      kind: "delivery",
-                      time: new Date().toISOString(),
-                    })
-                      .then(() => setMessage("Simulated delivery received"))
-                      .catch((e) => setMessage(e.message))
-                  }
-                >
-                  Send simulated delivery
-                </button>
-              )}
-            </>
-          )}
-          <button
-            disabled={busy}
-            onClick={() => {
-              setRun(null);
-              setRef(crypto.randomUUID());
-              setPayment(crypto.randomUUID());
-              setMessage("Fresh checkout ready");
-            }}
-          >
-            Reset demo
-          </button>
-        </div>
-      </details>
-    </section>
-  );
-}
-export default function Exhibition() {
-  const lab = new URLSearchParams(location.search).has("lab");
-  const [cases, update] = useState([]),
-    [state, feed] = useState("Connecting"),
-    [id, choose] = useState(
-      new URLSearchParams(location.search).get("case") || "",
-    ),
-    [filter, setFilter] = useState(statuses[0]);
-  useEffect(() => {
-    if (lab) return;
-    let timer,
-      active = true,
-      delay = 800;
-    async function poll() {
-      if (!document.hidden)
-        try {
-          const list = await api();
-          if (active) {
-            update(list);
-            feed("Connected");
-            delay = 800;
-          }
-        } catch {
-          if (active) {
-            feed("Feed stale");
-            delay = Math.min(10000, delay * 2);
-          }
-        }
-      if (active) timer = setTimeout(poll, delay);
+
+  async function deliver() {
+    const ref = paid.ref;
+    setDeliveryRequests((requests) => ({ ...requests, [ref]: "Sending delivery…" }));
+    setMessage("");
+    try {
+      await send(newEvent(paid, "delivery"));
+      setDeliveryRequests((requests) => ({ ...requests, [ref]: "Waiting for delivery evidence…" }));
+    } catch (error) {
+      setMessage(error.message);
+      setDeliveryRequests((requests) => ({ ...requests, [ref]: null }));
     }
-    poll();
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [lab]);
-  const list = cases.filter(
-      (c) => filter === statuses[0] || c.status === filter,
-    ),
-    c =
-      list.find((c) => c.id === id) ||
-      (id && new URLSearchParams(location.search).get("case") === id
-        ? undefined
-        : list[0]);
+  }
+
+  const checkoutPanel = draft && <Checkout key={draft + (standalone ? id : "")}
+    scenario={draft} delay={delay} busy={busy} onCheckout={checkout} modal={!standalone} onClose={closeCheckout} />;
+
   return (
-    <main className="exhibit">
-      <header>
-        <Aperture className="brand-icon" />
-        <strong>MerchantLens</strong>
-        <span className="mode-tag">{mode} · Simulated funds</span>
-        <a
-          href={lab ? (endpoint === "/api/cases" ? "?offline" : "?") : (endpoint === "/api/cases" ? "?lab&offline" : "?lab")}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {lab ? "Workbench" : "Demo Lab"} <ArrowUpRight size={14}/>
-        </a>
-        <a href="?seed">Seeded replay</a>
+    <Workbench className="ml-workbench">
+      <header className="ml-header">
+        <div className="ml-brand"><Aperture size={24} /><strong>MerchantLens</strong><span>Payment investigations</span></div>
+        <div className="ml-header-end">
+          <span className="ml-simulated">Simulated funds</span>
+          {onBack ? <button onClick={onBack}>Back to investigation</button> : <a href="/">Seeded replay</a>}
+        </div>
       </header>
-      {lab ? (
-        <Lab />
-      ) : (
-        <>
-          <div className="heading">
-            <div>
-              <small>
-                Investigations / {c ? "Payment detail" : "Workbench"}
-              </small>
-              <h1>{c ? "Sunrise Bakery" : "Payment investigations"}</h1>
-            </div>
-            <span role="status">
-              {state}{" "}
-              {state === "Feed stale" && (
-                <a href="?offline">Open offline rehearsal</a>
-              )}
+      <div className="ml-shell">
+        <div className="ml-tools">
+          <div className="ml-actions" aria-label="Start a simulated checkout">
+            <button className="ml-action ml-action-cake" disabled={busy} onClick={() => setDraft("Cake sale")}><CakeSlice size={18} /> Buy a ₹500 cake <ArrowRight size={16} /></button>
+            <button className="ml-action" disabled={busy} onClick={() => setDraft("Wallet top-up")}><Wallet size={18} /> Top up a test wallet <ArrowRight size={16} /></button>
+          </div>
+          <div className="ml-secondary">
+            <span className={`ml-feed ${state === "Connected" ? "online" : ""}`} role="status">
+              <Radio size={15} /> {state === "Connected" ? (endpoint === "/api/cases" ? "Local feed" : "AWS feed") : state}
             </span>
+            {state === "Feed interrupted" && endpoint !== "/api/cases" && <a href="?offline">Switch to local rehearsal</a>}
+            <details className="ml-popover">
+              <summary>Cases <b>{cases.length}</b> <ChevronDown size={13} /></summary>
+              <div className="ml-popover-body ml-cases">
+                {cases.length ? cases.map((entry) => {
+                  const finding = findingFor(entry);
+                  return <button key={entry.id} aria-current={current?.id === entry.id ? "true" : undefined}
+                    onClick={(event) => {
+                      setId(entry.id);
+                      const menu = event.currentTarget.closest("details");
+                      menu.open = false;
+                      menu.querySelector("summary").focus();
+                    }}>
+                    <strong>{finding.title}</strong>
+                    <small>{new Date(entry.records[0].received).toLocaleTimeString()} · {entry.id.slice(0, 6)}</small>
+                  </button>;
+                }) : <p>No cases received yet.</p>}
+              </div>
+            </details>
+            <details className="ml-popover ml-presenter">
+              <summary><SlidersHorizontal size={15} /> Presenter <ChevronDown size={13} /></summary>
+              <div className="ml-popover-body">
+                <label>Evidence delay (seconds)
+                  <input type="number" min="0" max="60" value={delay}
+                    onChange={(event) => setDelay(Math.min(60, Math.max(0, +event.target.value)))} />
+                </label>
+                {presenterScenarios.map(([scenario, label]) => <button key={scenario} disabled={busy} onClick={(event) => {
+                  event.currentTarget.closest("details").open = false;
+                  setDraft(scenario);
+                }}>{label}</button>)}
+                {paid && <button onClick={() => send(paid).then(() => setMessage("Duplicate acknowledged")).catch((error) => setMessage(error.message))}>Send duplicate confirmation</button>}
+              </div>
+            </details>
           </div>
-          <div className="workgrid">
-            <nav>
-              <h2>
-                Case queue <em>{list.length}</em>
-              </h2>
-              <select
-                aria-label="Filter cases"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              >
-                {statuses.map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
-              </select>
-              {list.map((r) => (
-                <button
-                  aria-current={c?.id === r.id ? "true" : undefined}
-                  className={c?.id === r.id ? "active" : ""}
-                  key={r.id}
-                  onClick={() => choose(r.id)}
-                >
-                  <b>
-                    Sunrise Bakery <span>₹500</span>
-                  </b>
-                  <small>
-                    {stamp(r.records[0].received)} · {r.id.slice(0, 6)}
-                  </small>
-                  <span className={"badge " + tone(r)}>
-                    {
-                      {
-                        conflict: "!  Mismatch",
-                        verified: "✓  Supported",
-                        waiting: "◷  Unverified",
-                      }[tone(r)]
-                    }
-                  </span>
-                </button>
-              ))}
-            </nav>
-            {c ? (
-              <Investigation key={c.id} c={c} api={api} />
-            ) : (
-              <section className="empty">
-                <Inbox size={38} aria-hidden="true"/>
-                <h2>
-                  {state === "Connecting"
-                    ? "Loading cases…"
-                    : state === "Feed stale" ? "Waiting for the feed to reconnect" : cases.length
-                      ? "No matching cases"
-                      : "Awaiting the first payment"}
-                </h2>
-                <p>{state === "Connecting" ? "Retrieving payment evidence…" : cases.length ? "Choose another case filter or start a fresh checkout." : "Make a simulated ₹500 purchase to trace its recipient and checkout evidence."}</p>
-                <a
-                  href={endpoint === "/api/cases" ? "?lab&offline" : "?lab"}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open checkout ↗
-                </a>
-              </section>
-            )}
-          </div>
-        </>
-      )}
-    </main>
+        </div>
+        {message && <p className="ml-notice" role="status">{message}</p>}
+        {standalone && <div className="ml-standalone">{checkoutPanel}</div>}
+        {current ? <CaseTrace key={current.id} c={current} api={api}
+          delivery={canDeliver && paid && <button className="ml-deliver" disabled={!!deliveryRequests[paid.ref]} onClick={deliver}><Truck size={17} /> {deliveryRequests[paid.ref] || "Send simulated delivery"}</button>} />
+          : <section className="ml-empty">
+            <GitFork size={32} />
+            <h1>{id ? "Waiting for this case" : "Trace a payment"}</h1>
+            <p>{id ? "The workbench will open the case when the payment reaches the feed."
+              : "Start a cake checkout or a test wallet top-up. Follow the ₹500 payment to Sunrise Bakery and see what the evidence supports."}</p>
+          </section>}
+      </div>
+      {!standalone && <dialog className="ml-dialog" ref={dialog} aria-labelledby="ml-checkout-title" onClose={() => setDraft(null)}>
+        {checkoutPanel}
+        {draft && message && <p className="ml-notice" role="status">{message}</p>}
+      </dialog>}
+    </Workbench>
   );
 }

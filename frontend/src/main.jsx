@@ -40,7 +40,8 @@ import {
 import * as THREE from "three";
 import "./style.css";
 import MoneyTrail from "./MoneyTrail.jsx";
-import { reviewPolicy, evidenceFor, buildCaseRecord, caseReportHTML } from "./review-policy.js";
+import { reviewPolicy, evidenceFor, buildCaseRecord, caseReportHTML } from "./seeded-review-policy.js";
+import { caseGraph, DemoCheckout, DemoControls, DemoInspector, DemoTimeline, useDashboardDemo } from "./dashboard-demo.jsx";
 const money = (n) => "₹" + n.toLocaleString("en-IN");
 const palette = {
   safe: "#42d7ae",
@@ -193,10 +194,11 @@ function WebGLGraph({
   evidence,
   focus,
   filter,
+  graph,
 }) {
   const [cameraMode,setCameraMode]=useState("perspective");
   const [autoOrbit,setAutoOrbit]=useState(false);
-  const nodes = baseNodes.map((n) =>
+  const nodes = graph?.nodes ?? baseNodes.map((n) =>
     n.id === "other"
       ? {
           ...n,
@@ -234,7 +236,7 @@ function WebGLGraph({
         <GraphCamera mode={cameraMode} />
         <Html fullscreen style={{pointerEvents:'none'}} zIndexRange={[10,9]}><div className="camera-presets" style={{pointerEvents:'auto'}}><button onClick={()=>setCameraMode('perspective')} className={cameraMode==='perspective'?'active':''}>Perspective</button><button onClick={()=>setCameraMode('top')} className={cameraMode==='top'?'active':''}>Front view</button><button onClick={()=>setAutoOrbit(v=>!v)} aria-pressed={autoOrbit}>{autoOrbit?'Stop orbit':'Auto orbit'}</button></div></Html>
         <group position={[-0.1, 0, 0]}>
-          {edgeDefs
+          {(graph?.edges ?? edgeDefs)
             .filter(
               ([a, b]) =>
                 visible.some((n) => n.id === a) &&
@@ -244,7 +246,7 @@ function WebGLGraph({
               const c = a === "other" || b === "other" ? kinds.other : t;
               return (
                 <FlowEdge
-                  key={i}
+                  key={graph ? a + "/" + b : i}
                   a={nodes.find((n) => n.id === a).pos}
                   b={nodes.find((n) => n.id === b).pos}
                   color={palette[c]}
@@ -319,6 +321,7 @@ function SVGGraph({
   evidence,
   filter,
   focus,
+  graph,
 }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState([0, 0]);
@@ -337,7 +340,7 @@ function SVGGraph({
     receiver: [605, 287],
     endpoint: [730, 340],
   };
-  const nodes = baseNodes
+  const nodes = graph?.nodes ?? baseNodes
     .filter((n) => bank || !["receiver", "endpoint", "supplier"].includes(n.id))
     .map((n) =>
       n.id === "other"
@@ -390,7 +393,7 @@ function SVGGraph({
       <g
         transform={`translate(${pan[0]} ${pan[1]}) translate(410 210) scale(${zoom}) translate(-410 -210)`}
       >
-        {edgeDefs
+        {(graph?.edges ?? edgeDefs)
           .filter(
             ([a, b]) =>
               nodes.some((n) => n.id === a) && nodes.some((n) => n.id === b),
@@ -400,11 +403,11 @@ function SVGGraph({
               a === "other" || b === "other"
                 ? nodes.find((n) => n.id === "other").type
                 : t;
-            const p = coords[a],
-              q = coords[b];
+            const p = coords[a] ?? nodes.find(node => node.id === a).coords,
+              q = coords[b] ?? nodes.find(node => node.id === b).coords;
             const path = `M${p[0]},${p[1]} Q${(p[0] + q[0]) / 2},${p[1]} ${q[0]},${q[1]}`;
             return (
-              <g key={i}>
+              <g key={graph ? a + "/" + b : i}>
                 <path
                   d={path}
                   stroke={palette[c]}
@@ -425,7 +428,7 @@ function SVGGraph({
             );
           })}
         {nodes.map((n) => {
-          const [x, y] = coords[n.id],
+          const [x, y] = n.coords ?? coords[n.id],
             c = palette[n.type];
           return (
             <g
@@ -525,6 +528,32 @@ function App() {
     [audit, setAudit] = useState(()=>{try{return JSON.parse(localStorage.getItem("merchantlens-audit")||"[]");}catch{return [];}}),
     [verified, setVerified] = useState(false),
     [modal, setModal] = useState(null);
+  const [demoMode, setDemoMode] = useState(() => location.pathname === "/exhibition" || new URLSearchParams(location.search).has("case"));
+  const demo = useDashboardDemo(demoMode);
+  const live = demoMode && view === "investigation";
+  const graph = live ? caseGraph(demo.entry) : undefined;
+  useEffect(() => {
+    if (demoMode) setSelected("payment");
+  }, [demoMode, demo.id]);
+  const demoMetrics = live && <div className="stats">
+    <Metric label="Payments observed" value={demo.payment ? "1" : "0"} detail="Selected checkout case" icon={Activity} />
+    <Metric label="Collection value" value={money((demo.payment?.amount || 0) / 100)} detail="Simulated funds" icon={ArrowDownLeft} />
+    <Metric label="Purpose assessment" value={demo.entry ? { risk: "Mismatch", safe: "Supported", unknown: "Unresolved" }[demo.type] : "Awaiting checkout"} detail="Current evidence rule" type={demo.type} icon={Shield} />
+    <Metric label="Evidence linked" value={demo.entry?.edges.length || 0} detail="Relationships in this case" icon={GitBranch} />
+  </div>;
+  function enterDemo() {
+    setDemoMode(true);
+    setView("investigation");
+    setSelected("payment");
+    setFilter("all");
+    setFocus(value => value + 1);
+  }
+  function exitDemo() {
+    setDemoMode(false);
+    setSelected("bakery");
+    setFilter("all");
+    setFocus(value => value + 1);
+  }
   useEffect(()=>{try{localStorage.setItem('merchantlens-audit',JSON.stringify(audit));}catch{}},[audit]);
   useEffect(()=>{try{localStorage.setItem('merchantlens-case-'+scenario,JSON.stringify({requested,response,outcome,reason}));}catch{}},[scenario,requested,response,outcome,reason]);
   const s = scenarios[scenario];
@@ -557,7 +586,8 @@ function App() {
     notify(text);
   }
   function exportCase() {
-    const data = record();
+    const data = live ? demo.entry : record();
+    if (!data) return;
     const url = URL.createObjectURL(
       new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
     );
@@ -653,6 +683,7 @@ function App() {
             </span>
           </div>
           <div className="header-actions">
+            {!live && <button className="presentation-btn checkout-demo-launcher" onClick={enterDemo}>Run checkout demo</button>}
             <span className="demo-tag">
               <span /> DEMO ENVIRONMENT
             </span>
@@ -660,6 +691,7 @@ function App() {
               className="icon-btn"
               title="Export case"
               onClick={exportCase}
+              disabled={live && !demo.entry}
             >
               <Download size={17} />
             </button>
@@ -694,7 +726,7 @@ function App() {
                           : "The deployment blueprint behind the prototype."}
                 </p>
               </div>
-              <div className="scenario-picker">
+              {!live && <div className="scenario-picker">
                 <label>REPLAY SCENARIO</label>
                 <select
                   value={scenario}
@@ -706,10 +738,11 @@ function App() {
                     </option>
                   ))}
                 </select>
-              </div>
+              </div>}
             </div>
+            {live && <DemoControls demo={demo} onReplay={exitDemo} choose={id => { demo.setId(id); setSelected("payment"); }} />}
           </div>
-          <div className="stats">
+          {live ? demoMetrics : <div className="stats">
             <Metric
               label="Payments observed"
               value={s.tx}
@@ -749,10 +782,10 @@ function App() {
               }
               icon={GitBranch}
             />
-          </div>
+          </div>}
           {view === "investigation" && (
             <>
-              <MoneyTrail bank={bank} scenario={scenario} onSelect={id=>{setSelected(id);document.querySelector('.graph-panel')?.scrollIntoView({behavior:'smooth',block:'center'});}} onReview={()=>setView('review')}/>
+              {!live && <MoneyTrail bank={bank} scenario={scenario} onSelect={id=>{setSelected(id);document.querySelector('.graph-panel')?.scrollIntoView({behavior:'smooth',block:'center'});}} onReview={()=>setView('review')}/>}
               <div className="investigation-grid">
                 <section className="graph-panel">
                   <div className="panel-heading">
@@ -784,8 +817,8 @@ function App() {
                   <div className="graph-area">
                     <div className="graph-overlay">
                       <span className="replay-dot" />{" "}
-                      {playing ? "REPLAY RUNNING" : "REPLAY PAUSED"}
-                      <span className="graph-time">12 NOV · 10:00–10:30</span>
+                      {live ? "SIMULATED CHECKOUT" : playing ? "REPLAY RUNNING" : "REPLAY PAUSED"}
+                      {!live && <span className="graph-time">12 NOV · 10:00–10:30</span>}
                     </div>
                     <Graph
                       {...{
@@ -796,6 +829,7 @@ function App() {
                         evidence,
                         focus,
                         filter,
+                        graph,
                       }}
                       onSelect={setSelected}
                     />
@@ -821,10 +855,10 @@ function App() {
                         </button>
                       ))}
                     </div>
-                    <span>{bank ? "8" : "5"} entities</span>
+                    <span>{live ? graph.nodes.length : bank ? "8" : "5"} entities</span>
                   </div>
                 </section>
-                <EvidencePanel
+                {live ? <DemoInspector demo={demo} selected={selected} onSelect={setSelected} /> : <EvidencePanel
                   {...{
                     selected,
                     selectedName,
@@ -840,9 +874,27 @@ function App() {
                     log("Clarification requested for checkout CKT-ALT-09");
                   }}
                   onImpact={() => setView("impact")}
-                />
+                />}
               </div>
-              <div className="bottom-grid">
+              {live ? <div className="bottom-grid">
+                <DemoTimeline demo={demo} onSelect={setSelected} />
+                <section className="assessment panel">
+                  <div className="section-heading"><h3>Assessment signals</h3></div>
+                  <p>{demo.finding.reason || "The assessment updates as evidence arrives."}</p>
+                  {demo.entry && <p>Applied rule: <strong>{demo.entry.rule}</strong></p>}
+                </section>
+                <section className="coverage panel">
+                  <div className="section-heading"><h3>Review history</h3></div>
+                  {demo.entry ? <>
+                    <p>Decision: <strong>{demo.entry.outcome}</strong></p>
+                    {["Request evidence", "Escalate", "Record supported outcome"].map(action => (
+                      <button key={action} className="secondary" disabled={demo.busy || (action === "Record supported outcome" && demo.type !== "safe")}
+                        onClick={() => demo.review(action)}>{action}</button>
+                    ))}
+                    <ul>{demo.entry.history.map(event => <li key={event.version}>{event.text}</li>)}</ul>
+                  </> : <p>Decisions are available once a case is received.</p>}
+                </section>
+              </div> : <div className="bottom-grid">
                 <section className="timeline panel">
                   <div className="section-heading">
                     <h3>Evidence timeline</h3>
@@ -963,7 +1015,7 @@ function App() {
                     </span>
                   </div>
                 </section>
-              </div>
+              </div>}
             </>
           )}
           {view === "transactions" && (
@@ -1440,6 +1492,7 @@ function App() {
           {toast}
         </div>
       )}
+      {live && demo.draft && <DemoCheckout demo={demo} />}
       {modal && (
         <div className="modal-backdrop" onClick={() => setModal(null)}>
           <section
@@ -1467,6 +1520,7 @@ function App() {
                     evidence,
                     focus,
                     filter,
+                        graph,
                   }}
                   onSelect={setSelected}
                 />

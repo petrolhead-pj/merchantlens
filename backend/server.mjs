@@ -1,14 +1,20 @@
 import http from 'node:http';
 import {localCases} from './exhibition.mjs';
+import {createPayuSandbox} from './payu-sandbox.mjs';
 import {awsBridge} from './aws-bridge.mjs';
 import { pathToFileURL } from 'node:url';
 import {newReplay,applyEvent,replayPayload,replayDecision} from '../frontend/src/replay.js';
-export function createServer() {
+export function createServer({ payuOptions } = {}) {
   let replay=newReplay();
-  const exhibition=localCases();
+  const sandbox=createPayuSandbox({
+    ...payuOptions,
+    record: evidence => exhibition.recordSandbox(evidence),
+  });
+  const exhibition=localCases({ ownsSandbox: sandbox.owns });
   return http.createServer(async (req,res)=>{
     res.setHeader('Content-Type','application/json');
     res.setHeader('Cache-Control','no-store');
+    if(req.url === '/betting-demo' || req.url.startsWith('/api/payu-sandbox/'))return sandbox.handle(req,res);
     if(req.url.startsWith('/api/cases'))return exhibition(req,res);
     if(req.url.startsWith('/api/cloud'))return awsBridge(req,res);
     if(req.method==='POST' && ['/api/replay','/api/replay/reset','/api/replay/decision'].includes(req.url)){

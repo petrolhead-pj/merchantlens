@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sportsbook Demo | Test Wallet</title>
+  <style>
+    body{margin:0;background:#071b16;color:#f2fff8;font:1rem/1.5 system-ui,sans-serif}
+    main{max-width:34rem;margin:12vh auto;padding:0 1rem}
+    section{padding:2rem;background:#112b22;border:1px solid #315749;border-radius:1rem}
+    h1{margin:.5rem 0;font-size:2.5rem;line-height:1.1}
+    p{color:#bed7cc}
+    small,a{color:#91eac0}
+    button{padding:.8rem 1rem;border:0;border-radius:.5rem;background:#91eac0;color:#071b16;font:inherit;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.55;cursor:default}
+    a{display:block;margin-top:1rem}
+  </style>
+</head>
+<body>
+  <main><section aria-labelledby="wallet-heading">
+    <small>SPORTSBOOK DEMO · SIMULATED FUNDS</small>
+    <h1 id="wallet-heading">Test betting wallet</h1>
+    <p>Add ₹500 in simulated funds to the demo wallet.</p>
+    <button id="deposit" type="button">Top up demo wallet · ₹500</button>
+    <a id="investigation" target="_blank" rel="noopener">Watch this payment in MerchantLens</a>
+    <p id="status" role="status"></p>
+  </section></main>
+  <script type="module" src="/src/sportsbook.js"></script>
+</body>
+</html>
