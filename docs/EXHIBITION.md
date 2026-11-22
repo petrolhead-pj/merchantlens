@@ -4,6 +4,10 @@ Start on Node 22 or later with `npm run setup`, `npm test`, `npm run benchmark`,
 
 ## Three minutes at the stand
 
+Open **Presenter controls** beneath the product to select a scenario, set the delay or inject a simulated event. Collapse the panel for the customer view. After checkout, **Open matching workbench** opens that exact case. For the conflicting wallet run, use an eight-second delay to let the jury see the Chocolate cake claim before the wallet credit arrives.
+
+In the workbench, **Explain this flag** selects the supporting relationship. Open **Matching IDs & timestamps** for its provenance. **Links** offers keyboard-accessible relationship selection. Graph zoom, pan and record selection persist as new events arrive. Instrument Sans and the [cake photograph](https://images.unsplash.com/photo-1606890737304-57a1ca8a5b62) ship in the local production build.
+
 On the exhibition laptop open [AWS workbench](http://127.0.0.1:4177/) and [Demo Lab](http://127.0.0.1:4177/?lab) in separate windows. The local server signs AWS requests with profile `merchantlens`; the checkout uses simulated funds. For Wi-Fi-free rehearsal use [offline workbench](http://127.0.0.1:4173/) and [offline checkout](http://127.0.0.1:4173/?lab). The two servers have separate case histories.
 
 1. **0:00–0:55.** Select Cake sale, buy the chocolate cake and point to the ₹500 receipt for SRB-2041. The click observer captured the visible purchase action. The order is the merchant's own claim. Send simulated delivery, select the delivery link, and record the supported outcome.

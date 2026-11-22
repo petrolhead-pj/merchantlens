@@ -1,0 +1,113 @@
+.product-app .session {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.session span:first-child {
+  margin-right: auto;
+}
+.login,
+.business-panel {
+  margin: 24px auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 26px;
+  max-width: 1000px;
+}
+.login {
+  max-width: 420px;
+  margin: 8vh auto;
+}
+.login h1 {
+  margin-bottom: 20px;
+}
+.login label,
+.product-info label {
+  display: block;
+  margin: 12px 0;
+}
+.login input,
+.product-info select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  font: inherit;
+}
+.product-app .login button,
+.product-app .pay {
+  background: #175649;
+  color: white;
+  padding: 11px 18px;
+  width: 100%;
+}
+.commerce {
+  max-width: 1000px;
+  margin: auto;
+}
+.commerce .shop img {
+  max-height: 460px;
+}
+.business-panel h2 span {
+  float: right;
+  color: var(--teal);
+}
+.business-panel article {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding: 15px 0;
+  overflow-wrap: anywhere;
+}
+.business-panel small {
+  display: block;
+  color: var(--muted);
+}
+.business-panel h2,
+.business-panel h1 {
+  margin-bottom: 16px;
+}
+.product-app header a:first-of-type {
+  background: transparent;
+  color: white;
+}
+.product-app header a[aria-current="page"] {
+  color: #153e37;
+  background: #d5efe7;
+  border-radius: 6px;
+}
+.commerce .tabs {
+  justify-content: flex-start;
+  width: fit-content;
+}
+.commerce .product-info .tabs button {
+  padding: 5px 14px;
+}
+.product-app .workgrid nav {
+  max-height: 70vh;
+}
+@media (max-width: 820px) {
+  .product-app header {
+    display: flex;
+  }
+  .product-app header strong {
+    margin-right: auto;
+  }
+  .product-app header .mode-tag {
+    width: auto;
+  }
+  .product-app header a {
+    flex: 1;
+    text-align: center;
+  }
+  .business-panel article {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

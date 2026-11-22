@@ -43,6 +43,7 @@ try {
     });
   });
   await lab.goto(origin + "/?lab");
+  await lab.getByText("Presenter controls").click();
   let cake;
   for (const [name, result] of [
     ["Cake sale", "Cake sale supported"],
@@ -51,9 +52,15 @@ try {
     ["Conflicting wallet credit", "Purpose mismatch — review"],
   ]) {
     await lab.getByLabel("Scenario").selectOption(name);
-    await lab.getByLabel("Evidence delay").fill("1");
+    await lab.getByLabel("Evidence delay").fill(name === "Conflicting wallet credit" ? "8" : "1");
     const ref = await lab.locator("[data-ref]").getAttribute("data-ref");
     await lab.locator("[data-ref]").click();
+    if (name === "Conflicting wallet credit") {
+      await board.locator('aside[data-case="' + ref + '"] .finding h2').filter({hasText:"Purpose unverified"}).waitFor();
+      await board.locator(".evidence-strip").getByText("Chocolate cake").waitFor();
+      await board.locator(".evidence-strip").getByText("Evidence pending").waitFor();
+      assert.ok((await lab.getByText("Open matching workbench").getAttribute("href")).includes(ref));
+    }
     await lab.getByText("Run received · inspect the workbench").waitFor();
     if (name === "Cake sale")
       await lab.getByText("Send simulated delivery").click();
@@ -91,7 +98,7 @@ try {
       1,
     );
     const versionKey = record.id + "/" + record.version;
-    if(name==="Cake sale")cake=record;
+    if (name === "Cake sale") cake = record;
     await board.waitForFunction(
       (key) => window.visibleVersions[key],
       versionKey,
@@ -107,26 +114,80 @@ try {
     );
     await lab.getByText("Reset demo").click();
   }
-  await board.getByRole("button").filter({hasText:cake.id.slice(0,6)}).click();
-  await board.getByRole("button",{name:"Record supported outcome"}).click();
-  await board.locator("aside strong").filter({hasText:"Record supported outcome"}).waitFor();
-  const endpoint=origin+(process.env.REHEARSAL_API || "/api/cases");
-  const priorVersion=Number(await board.locator("aside").getAttribute("data-version"));
-  const readSelected=async()=> (await (await board.request.get(endpoint)).json()).find(c=>c.id===cake.id);
-  const reviewed=await readSelected();
-  assert.equal(reviewed.outcome,"Record supported outcome");
-  const late={...cake.records.find(r=>r.event.kind==="payment").event,id:crypto.randomUUID(),time:new Date().toISOString(),kind:"credit"};
-  assert.ok((await board.request.post(endpoint+"/evidence",{data:late})).ok());
-  await board.locator("aside h2").filter({hasText:"Purpose mismatch — review"}).waitFor();
-  await board.getByRole("button",{name:"Explain this flag"}).click();
-  assert.equal(await board.locator("aside h3").innerText(),"credited wallet");
-  const stale=await board.request.post(endpoint+"/review",{data:{ref:cake.id,version:priorVersion,action:"Escalate"}});
-  assert.equal(stale.status(),409);
-  const reopened=await readSelected();
-  assert.equal(reopened.outcome,"Open");
-  assert.equal(reopened.version,priorVersion+1);
-  assert.deepEqual(reopened.history.slice(0,-1),reviewed.history);
-  console.log("Late wallet credit reopened the case; prior decision history survived the rejected stale write.");
+  await board
+    .getByRole("button")
+    .filter({ hasText: cake.id.slice(0, 6) })
+    .click();
+  await board.getByRole("button", { name: "Record supported outcome" }).click();
+  await board
+    .locator("aside strong")
+    .filter({ hasText: "Record supported outcome" })
+    .waitFor();
+  const endpoint = origin + (process.env.REHEARSAL_API || "/api/cases");
+  const priorVersion = Number(
+    await board.locator("aside").getAttribute("data-version"),
+  );
+  const readSelected = async () =>
+    (await (await board.request.get(endpoint)).json()).find(
+      (c) => c.id === cake.id,
+    );
+  const reviewed = await readSelected();
+  assert.equal(reviewed.outcome, "Record supported outcome");
+  await board.getByRole("button", { name: "Timeline", exact: true }).click();
+  await board.getByRole("heading", { name: "Evidence timeline" }).waitFor();
+  await board.getByRole("button", { name: "Links", exact: true }).click();
+  await board
+    .locator(".alternative button")
+    .filter({ hasText: "delivery for order" })
+    .click();
+  assert.equal(
+    await board.locator("aside h3").innerText(),
+    "delivery for order",
+  );
+  await board.getByRole("button", { name: "Graph", exact: true }).click();
+  await board
+    .getByRole("button", { name: "Merchant claim · Chocolate cake" })
+    .click();
+  await board.getByRole("button", { name: "Zoom in" }).click();
+  const map = await board.locator(".map-scroll > svg").boundingBox();
+  await board.mouse.move(map.x+8,map.y+8);
+  await board.mouse.down();
+  await board.mouse.move(map.x+35,map.y+30);
+  await board.mouse.up();
+  const view = await board.locator("[data-view]").getAttribute("data-view");
+  assert.notEqual(view.split(",")[1],"0");
+  const late = {
+    ...cake.records.find((r) => r.event.kind === "payment").event,
+    id: crypto.randomUUID(),
+    time: new Date().toISOString(),
+    kind: "credit",
+  };
+  assert.ok(
+    (await board.request.post(endpoint + "/evidence", { data: late })).ok(),
+  );
+  await board
+    .locator("aside h2")
+    .filter({ hasText: "Purpose mismatch — review" })
+    .waitFor();
+  assert.equal(
+    await board.locator("[data-view]").getAttribute("data-view"),
+    view,
+  );
+  assert.equal(await board.locator("aside h3").innerText(), "Chocolate cake");
+  await board.getByRole("button", { name: "Reset view" }).click();
+  await board.getByRole("button", { name: "Explain this flag" }).click();
+  assert.equal(await board.locator("aside h3").innerText(), "credited wallet");
+  const stale = await board.request.post(endpoint + "/review", {
+    data: { ref: cake.id, version: priorVersion, action: "Escalate" },
+  });
+  assert.equal(stale.status(), 409);
+  const reopened = await readSelected();
+  assert.equal(reopened.outcome, "Open");
+  assert.equal(reopened.version, priorVersion + 1);
+  assert.deepEqual(reopened.history.slice(0, -1), reviewed.history);
+  console.log(
+    "Late wallet credit reopened the case; prior decision history survived the rejected stale write.",
+  );
   const scope = await board.locator("aside").getAttribute("data-case");
   const feedPattern = "**" + (process.env.REHEARSAL_API || "/api/cases");
   await board.route(feedPattern, (route) => route.abort());
@@ -150,6 +211,13 @@ try {
     );
     await board.screenshot({
       path: `.demo-tools/workbench-${width}.png`,
+      fullPage: true,
+    });
+    await lab.setViewportSize({ width, height });
+    if ((await lab.locator(".presenter").getAttribute("open")) !== null)
+      await lab.getByText("Presenter controls").click();
+    await lab.screenshot({
+      path: `.demo-tools/checkout-${width}.png`,
       fullPage: true,
     });
   }

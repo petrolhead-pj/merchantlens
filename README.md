@@ -1,10 +1,14 @@
 # MerchantLens
 
-The default exhibition opens a two-window checkout and evidence workbench. See the [three-minute rehearsal, local setup and AWS preview](docs/EXHIBITION.md). The previous 248-payment investigation remains under **Seeded replay**.
+MerchantLens has separate authenticated customer, merchant-operations and analyst screens. A confirmed simulated payment creates a real order or wallet posting. Merchant fulfilment advances the order, and stored evidence drives the analyst finding.
+
+Use Node 22.16 or later. Run `npm ci`, `npm run setup`, `npm run build`, then `npm run accounts` once and `npm start`. Open [the customer application](http://127.0.0.1:4180/customer). See [application setup, sign-in, storage and verification](docs/APPLICATION.md) for merchant and analyst access and the AWS-backed mode.
+
+The exhibition fixture server is a separate development tool. Its timed scenarios and seeded replay are described in the [rehearsal guide](docs/EXHIBITION.md).
 
 An analyst workspace for **The Bakery That Takes Bets**, IIM Bangalore. Follow two ₹500 payments into the same merchant and inspect what the available evidence supports.
 
-## Run at the exhibition
+## Run the separate exhibition fixture
 
 Use Node 22 or newer. Run these commands in the repository root. Setup requires internet once.
 
@@ -16,7 +20,7 @@ Use Node 22 or newer. Run these commands in the repository root. Setup requires 
 
 Open **http://127.0.0.1:4173**. After building, the stall command serves the local assets and API with Node alone. Keep the process running. For development, run `npm run dev` and optionally `npm run backend` in another terminal. Without the backend, the interface selects browser replay. For a fresh visit, click **Reset Stall Demo State**. Use a dedicated browser profile on each laptop.
 
-## Implemented locally today
+## Seeded exhibition replay
 
 Case ML-2041, merchant SRB-2041, session PS-0921. A synthetic ledger holds 248 payments. Source toggles, payment link controls, received-time filtering and rule-based triage drive a typed temporal transaction & evidence graph. The analyst records the final disposition. JSON and printable HTML carry the active records, scope and dated history. Browser history is editable and unsigned. Refresh requires fresh attestation.
 
@@ -24,7 +28,7 @@ The separate synthetic webhook drawer starts with zero payments. Send one paymen
 
 ## Proposed production / shadow pilot
 
-Validate provider authentication, permissions for each feed, durable idempotent queues, identity reconciliation, case access controls, retention, independent outcome labels and shadow evaluation at equal analyst capacity before considering a deployment. AWS services and trained ML inference are proposals. Public product documentation does not confer access to merchant bank accounts.
+The workstation application uses versioned evidence rules and has been verified against Sydney DynamoDB. A real-money pilot would require provider-issued confirmations, authorized evidence feeds, operational access controls and a retention policy. Trained inference would require a documented dataset, evaluation and inference implementation.
 
 ## Finale materials
 

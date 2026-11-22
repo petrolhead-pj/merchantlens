@@ -89,3 +89,17 @@ export function checkoutVerdict(kinds){
   if(['payment','cake','order','delivery'].every(has))return {status:'Cake sale supported',why:'Sunrise Bakery received ₹500 for a cake checkout matched to its order and delivery record.'};
   return {status:'Purpose unverified',why:!has('payment')?'Evidence is waiting for provider confirmation.':has('cake')?'The cake checkout matches this payment. Order or delivery evidence is pending.':'Sunrise Bakery received ₹500. No independent checkout observation has matched this payment yet.'};
 }
+
+export function commerceFinding(records, order, unresolved) {
+  const kinds = records.map(record => record.event.kind);
+  const finding = checkoutVerdict(kinds);
+  if (finding.status === 'Purpose mismatch — review') return finding;
+  if (finding.status === 'Cake sale supported') {
+    const completion = order?.method === 'Pickup' ? 'collection' : 'delivery';
+    return {...finding, why: 'The observed cake checkout matches the paid order and its merchant-recorded '+completion+'.'};
+  }
+  if (unresolved) return {...finding, why:'Payment confirmed. The reported browser action could not be linked to this checkout.'};
+  if (!kinds.includes('cake')) return {...finding, why:'Payment confirmed. No browser observation is linked to this checkout.'};
+  if (order?.method === 'Pickup') return {...finding, why:order.stage === 'Ready' ? 'The cake is ready for pickup. Collection is still pending.' : 'The paid cake order is for pickup. Collection is still pending.'};
+  return {...finding, why:'The observed cake purchase matches the paid order. Merchant delivery confirmation is pending.'};
+}
