@@ -62,6 +62,8 @@ const catalog = {
 };
 export const recordInfo = (c, key) => {
   const [name, source, icon] = catalog[key] || [key, "Evidence record", Link2];
+  const orderLabel = key === "order" && c.nodes.find(node => node.key === "order")?.event.label;
+  if (orderLabel) return [orderLabel, source, icon];
   if (key === "payment") return [money(c) || name, c.sandbox ? "PayU sandbox" : (c.paymentState || "Confirmed") + " payment", icon];
   if (c.sandbox && key === "topup") return ["Betting wallet deposit", "Test betting page", icon];
   if (c.sandbox && key === "storefront") return ["Test betting page", "Checkout origin", icon];

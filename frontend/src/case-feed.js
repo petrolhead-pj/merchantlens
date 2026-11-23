@@ -21,13 +21,15 @@ export const newEvent = (base, kind) => ({
   ...base, id: crypto.randomUUID(), kind, time: new Date().toISOString(),
 });
 
-export async function submitCheckout({ scenario, delay, ref, payment, click }, onConfirmed) {
+export async function submitCheckout({ scenario, delay, ref, payment, click, orderLabel }, onConfirmed) {
   const base = { ref, payment, amount: 50000, currency: "INR", merchant: "SRB-2041" };
   await send(newEvent(base, "payment"));
   onConfirmed();
   if (scenario === "Conflicting wallet credit") await send(newEvent(base, "order"));
   await new Promise((resolve) => setTimeout(resolve, delay * 1000));
-  if (["Cake sale", "Unverified"].includes(scenario)) await send(newEvent(base, "order"));
+  if (["Cake sale", "Unverified"].includes(scenario)) {
+    await send(newEvent(orderLabel ? { ...base, label: orderLabel } : base, "order"));
+  }
   if (scenario !== "Unverified" && click?.ref === ref) await send(click);
   if (scenario === "Conflicting wallet credit") await send(newEvent(base, "credit"));
 }

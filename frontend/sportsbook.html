@@ -3,28 +3,58 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sportsbook Demo | Test Wallet</title>
-  <style>
-    body{margin:0;background:#071b16;color:#f2fff8;font:1rem/1.5 system-ui,sans-serif}
-    main{max-width:34rem;margin:12vh auto;padding:0 1rem}
-    section{padding:2rem;background:#112b22;border:1px solid #315749;border-radius:1rem}
-    h1{margin:.5rem 0;font-size:2.5rem;line-height:1.1}
-    p{color:#bed7cc}
-    small,a{color:#91eac0}
-    button{padding:.8rem 1rem;border:0;border-radius:.5rem;background:#91eac0;color:#071b16;font:inherit;font-weight:700;cursor:pointer}
-    button:disabled{opacity:.55;cursor:default}
-    a{display:block;margin-top:1rem}
-  </style>
+  <title>Touchline — Sportsbook Demo</title>
+  <link rel="stylesheet" href="/src/sportsbook.css">
 </head>
 <body>
-  <main><section aria-labelledby="wallet-heading">
-    <small>SPORTSBOOK DEMO · SIMULATED FUNDS</small>
-    <h1 id="wallet-heading">Test betting wallet</h1>
-    <p>Add ₹500 in simulated funds to the demo wallet.</p>
-    <button id="deposit" type="button">Top up demo wallet · ₹500</button>
-    <a id="investigation" target="_blank" rel="noopener">Watch this payment in MerchantLens</a>
-    <p id="status" role="status"></p>
-  </section></main>
+  <header class="top">
+    <a href="./sportsbook.html" class="wordmark"><span aria-hidden="true">↗</span> TOUCHLINE</a>
+    <nav aria-label="Main navigation"><a href="#matches">Sportsbook</a><a href="#wallet">Wallet</a></nav>
+    <span class="demo">Simulated funds</span>
+  </header>
+  <main class="layout">
+    <aside class="sports" aria-label="Sports">
+      <h2>Sports</h2>
+      <button type="button" data-sport="All" aria-pressed="true"><span aria-hidden="true">◈</span> All sports</button>
+      <button type="button" data-sport="Football" aria-pressed="false"><span aria-hidden="true">⚽</span> Football</button>
+      <button type="button" data-sport="Basketball" aria-pressed="false"><span aria-hidden="true">◉</span> Basketball</button>
+      <button type="button" data-sport="Cricket" aria-pressed="false"><span aria-hidden="true">◇</span> Cricket</button>
+    </aside>
+    <div class="centre">
+      <section class="feature" aria-labelledby="feature-heading">
+        <div class="pitch" aria-hidden="true"><i></i></div>
+        <div class="feature-content">
+          <p>Featured fixture · Football</p>
+          <h1 id="feature-heading">Harbour City<br><em>vs</em> Northbridge</h1>
+          <a href="#matches" id="featured-markets">Explore markets ↗</a>
+        </div>
+      </section>
+      <section id="matches" aria-labelledby="matches-title">
+        <div class="matches-header"><h2 id="matches-title">Match centre</h2><span>Demo fixtures</span></div>
+        <div class="filters" aria-label="Match status">
+          <button type="button" data-phase="All" aria-pressed="true">All matches</button>
+          <button type="button" data-phase="Live" aria-pressed="false">Live</button>
+          <button type="button" data-phase="Upcoming" aria-pressed="false">Upcoming</button>
+        </div>
+        <div id="market-list"></div>
+      </section>
+    </div>
+    <aside class="account" aria-label="Bet slip and wallet">
+      <section class="panel" aria-labelledby="slip-title">
+        <h2 id="slip-title">Bet slip <span id="slip-count">0</span></h2>
+        <div id="selection" aria-live="polite"><p>Select odds to preview a pick.</p></div>
+        <button type="button" id="clear-pick" hidden>Remove selection</button>
+      </section>
+      <section class="panel wallet" id="wallet" aria-labelledby="wallet-title">
+        <h2 id="wallet-title">Demo wallet</h2>
+        <p>Available test balance</p>
+        <strong id="balance">₹0</strong>
+        <button id="deposit" type="button">Top up demo wallet · ₹500</button>
+        <a id="investigation" target="_blank" rel="noopener">Watch this payment in MerchantLens ↗</a>
+        <p id="status" role="status"></p>
+      </section>
+    </aside>
+  </main>
   <script type="module" src="/src/sportsbook.js"></script>
 </body>
 </html>
