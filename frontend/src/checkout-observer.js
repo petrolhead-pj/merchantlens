@@ -1,5 +1,6 @@
 // Test instrumentation: classify only known visible buttons in the controlled lab.
 const actions = new Map([
+  ["Pay ₹500", "cake"],
   ["Buy chocolate cake · ₹500", "cake"],
   ["Top up demo wallet · ₹500", "topup"],
 ]);

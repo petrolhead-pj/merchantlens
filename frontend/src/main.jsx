@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, Suspense } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Html, Line, OrbitControls, Stars, Float, MeshDistortMaterial } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import {
   Activity,
   ArrowDownLeft,
@@ -9,7 +9,6 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
-  ChevronDown,
   ChevronRight,
   Clock,
   Database,
@@ -38,10 +37,15 @@ import {
   Zap,
 } from "lucide-react";
 import * as THREE from "three";
+import { CheckoutCase } from "./CheckoutCase.jsx";
 import "./style.css";
+import "./workbench.css";
 import MoneyTrail from "./MoneyTrail.jsx";
+import { EvidenceNode, FlowEdge } from "./EvidenceScene.jsx";
 import { reviewPolicy, evidenceFor, buildCaseRecord, caseReportHTML } from "./review-policy.js";
 const money = (n) => "₹" + n.toLocaleString("en-IN");
+const checkoutOrigin = import.meta.env.VITE_CHECKOUT_ORIGIN || "http://127.0.0.1:4174";
+const checkoutReference = new URLSearchParams(location.search).get("case");
 const palette = {
   safe: "#42d7ae",
   risk: "#ff776c",
@@ -91,7 +95,7 @@ const baseNodes = [
     id: "customers",
     name: "Customers",
     sub: "Verified payer tokens",
-    pos: [-5.4, 1.2, 1.3],
+    pos: [-5.6, 0.35, 0.8],
     type: "neutral",
     kind: "customers",
   },
@@ -99,7 +103,7 @@ const baseNodes = [
     id: "cake",
     name: "Cake checkout",
     sub: "CKT-CAKE-01",
-    pos: [-2.5, 2.1, -1.1],
+    pos: [-2.95, 1.85, -0.1],
     type: "safe",
     kind: "checkout",
   },
@@ -107,7 +111,7 @@ const baseNodes = [
     id: "other",
     name: "Alternate checkout",
     sub: "CKT-ALT-09",
-    pos: [-2.5, -1.5, 2.1],
+    pos: [-3.25, -1.8, 1.25],
     type: "risk",
     kind: "checkout",
   },
@@ -115,7 +119,7 @@ const baseNodes = [
     id: "bakery",
     name: "Sunrise Bakery",
     sub: "MID • SRB-2041",
-    pos: [0.7, 0.3, 0],
+    pos: [0.35, 0, 0.35],
     type: "neutral",
     kind: "merchant",
   },
@@ -123,7 +127,7 @@ const baseNodes = [
     id: "orders",
     name: "Cake orders",
     sub: "Order + delivery matched",
-    pos: [0.4, 3.05, -2.6],
+    pos: [0.65, 2.78, -1.7],
     type: "safe",
     kind: "evidence",
   },
@@ -131,7 +135,7 @@ const baseNodes = [
     id: "supplier",
     name: "Flour supplier",
     sub: "Verified operating expense",
-    pos: [4, 2, -1.7],
+    pos: [4.15, 1.42, -0.85],
     type: "safe",
     kind: "receiver",
   },
@@ -139,7 +143,7 @@ const baseNodes = [
     id: "receiver",
     name: "Receiver R",
     sub: "Owner unverified",
-    pos: [4, -1.5, 2.3],
+    pos: [3.2, -1.42, 1.25],
     type: "unknown",
     kind: "receiver",
   },
@@ -147,7 +151,7 @@ const baseNodes = [
     id: "endpoint",
     name: "Account Z",
     sub: "Last observed account",
-    pos: [6, -3.1, 0.5],
+    pos: [5.75, -2.36, 0.05],
     type: "unknown",
     kind: "receiver",
   },
@@ -162,28 +166,26 @@ const edgeDefs = [
   ["bakery", "receiver", "unknown"],
   ["receiver", "endpoint", "unknown"],
 ];
-function FlowEdge({ a, b, color, active }) {
-  const particles = useRef([]);
-  const curve = React.useMemo(() => new THREE.QuadraticBezierCurve3(new THREE.Vector3(...a), new THREE.Vector3((a[0]+b[0])/2, (a[1]+b[1])/2+0.65, (a[2]+b[2])/2+0.9),new THREE.Vector3(...b)),[a,b]);
-  const points = React.useMemo(()=>curve.getPoints(48),[curve]);
-  useFrame(({clock})=>{if(active) particles.current.forEach((mesh,i)=>{if(mesh)mesh.position.copy(curve.getPoint((clock.elapsedTime*0.14+i/3)%1));});});
-  return <><Line points={points} color={color} lineWidth={1.5} transparent opacity={0.58}/>{[0,1,2].map(i=><mesh key={i} ref={el=>particles.current[i]=el} visible={active}><sphereGeometry args={[0.055,12,12]}/><meshBasicMaterial color={color} toneMapped={false}/></mesh>)}</>;
+function ProjectGraphLabels({ nodes, labels }) {
+  const point = useRef(new THREE.Vector3());
+  useFrame(({ camera, size }) => {
+    camera.updateMatrixWorld();
+    for (const node of nodes) {
+      const label = labels.current[node.id];
+      if (!label) continue;
+      const [x, y, z] = node.pos;
+      const labelOffset = node.id === "endpoint" && size.width < 500 ? 0.99 : 0.72;
+      point.current.set(x, y - labelOffset, z + 0.25).project(camera);
+      const { x: px, y: py, z: depth } = point.current;
+      const screenX = ((px + 1) * size.width) / 2;
+      const screenY = ((1 - py) * size.height) / 2;
+      label.style.visibility = depth >= -1 && depth <= 1 ? "visible" : "hidden";
+      label.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translateX(-50%)`;
+    }
+  });
+  return null;
 }
-function SpatialNode({node:n,selected,onSelect,dim,playing}) {
- const spin=useRef();
- useFrame((_,dt)=>{if(spin.current&&playing)spin.current.rotation.z+=dt*0.22;});
- const c=palette[n.type], radius=n.id==='bakery'?0.57:0.32;
- return <group position={n.pos}>
-  <Float speed={playing?1.4:0} rotationIntensity={0.12} floatIntensity={0.25}>
-   <mesh onClick={e=>{e.stopPropagation();onSelect(n.id);}}>
-    <icosahedronGeometry args={[radius,3]}/><MeshDistortMaterial color={c} emissive={c} emissiveIntensity={selected?1.2:0.45} metalness={0.7} roughness={0.19} distort={0.13} speed={playing?1.6:0} transparent opacity={dim?0.2:1}/>
-   </mesh>
-   <group ref={spin}><mesh rotation={[Math.PI/2.6,0.3,0]}><torusGeometry args={[radius*1.55,0.018,8,80]}/><meshBasicMaterial color={c} transparent opacity={dim?0.1:0.65}/></mesh>
-   {selected&&<mesh rotation={[0.3,Math.PI/2,0]}><torusGeometry args={[radius*1.85,0.012,8,80]}/><meshBasicMaterial color="#ffffff" transparent opacity={0.5}/></mesh>}</group>
-  </Float>
-  <Html position={[0,-radius-0.4,0]} center zIndexRange={[5,0]}><button aria-label={'Inspect '+n.name} onClick={()=>onSelect(n.id)} className={'spatial-label '+(selected?'active':'')+(dim?' dim':'')} style={{'--node-color':c}}><strong>{n.name}</strong><small>{n.sub}</small></button></Html>
- </group>;
-}
+
 function WebGLGraph({
   scenario,
   selected,
@@ -194,8 +196,10 @@ function WebGLGraph({
   focus,
   filter,
 }) {
-  const [cameraMode,setCameraMode]=useState("perspective");
-  const [autoOrbit,setAutoOrbit]=useState(false);
+  const [cameraMode, setCameraMode] = useState("perspective");
+  const [autoOrbit, setAutoOrbit] = useState(false);
+  const controls = useRef(null);
+  const labels = useRef({});
   const nodes = baseNodes.map((n) =>
     n.id === "other"
       ? {
@@ -218,63 +222,102 @@ function WebGLGraph({
   const visible = nodes.filter(
     (n) => bank || !["receiver", "endpoint", "supplier"].includes(n.id),
   );
-  const kinds = Object.fromEntries(nodes.map((n) => [n.id, n.type]));
+  const visibleById = Object.fromEntries(visible.map((node) => [node.id, node]));
+  const edges = edgeDefs.filter(([from, to]) => visibleById[from] && visibleById[to]);
   return (
-    <Canvas key={focus}
-      camera={{ position: [1, 6, 16], fov: 48 }}
-      dpr={[1, 1.7]}
-    >
-      <color attach="background" args={["#040a1b"]} />
-      <fog attach="fog" args={["#040a1b",25,65]} />
-      <ambientLight intensity={0.7}/><pointLight position={[0,6,6]} intensity={55} color="#3b9bff"/><pointLight position={[-6,-2,3]} intensity={20} color="#9a75ff"/>
-      <Stars radius={45} depth={25} count={1400} factor={2.2} saturation={0.4} fade speed={playing?0.3:0}/>
-      <gridHelper args={[42,42,"#134b8d","#0a1b37"]} position={[0,-4.3,0]}/>
-      <mesh rotation={[-Math.PI/2,0,0]} position={[0,-4.32,0]}><planeGeometry args={[50,50]}/><meshStandardMaterial color="#040918" metalness={0.65} roughness={0.36}/></mesh>
-      <Suspense fallback={null}>
-        <GraphCamera mode={cameraMode} />
-        <Html fullscreen style={{pointerEvents:'none'}} zIndexRange={[10,9]}><div className="camera-presets" style={{pointerEvents:'auto'}}><button onClick={()=>setCameraMode('perspective')} className={cameraMode==='perspective'?'active':''}>Perspective</button><button onClick={()=>setCameraMode('top')} className={cameraMode==='top'?'active':''}>Front view</button><button onClick={()=>setAutoOrbit(v=>!v)} aria-pressed={autoOrbit}>{autoOrbit?'Stop orbit':'Auto orbit'}</button></div></Html>
-        <group position={[-0.1, 0, 0]}>
-          {edgeDefs
-            .filter(
-              ([a, b]) =>
-                visible.some((n) => n.id === a) &&
-                visible.some((n) => n.id === b),
-            )
-            .map(([a, b, t], i) => {
-              const c = a === "other" || b === "other" ? kinds.other : t;
-              return (
-                <FlowEdge
-                  key={i}
-                  a={nodes.find((n) => n.id === a).pos}
-                  b={nodes.find((n) => n.id === b).pos}
-                  color={palette[c]}
-                  active={playing}
-                />
-              );
-            })}
-          {visible.map(n=><SpatialNode key={n.id} node={n} selected={selected===n.id} onSelect={onSelect} playing={playing} dim={filter!=="all"&&n.type!==filter}/>)}
-        </group>
+    <div className="webgl-graph">
+      <div className="camera-presets" aria-label="Graph camera controls" role="group">
+        <button onClick={() => setCameraMode("perspective")} aria-pressed={cameraMode === "perspective"}>
+          Perspective
+        </button>
+        <button onClick={() => setCameraMode("front")} aria-pressed={cameraMode === "front"}>
+          Front view
+        </button>
+        <button onClick={() => setAutoOrbit((enabled) => !enabled)} aria-pressed={autoOrbit}>
+          {autoOrbit ? "Stop orbit" : "Auto orbit"}
+        </button>
+      </div>
+      <div className="graph-labels">
+        {visible.map((node) => (
+          <button
+            key={node.id}
+            ref={(element) => { labels.current[node.id] = element; }}
+            aria-label={"Inspect " + node.name}
+            aria-pressed={selected === node.id}
+            className={"spatial-label" + (selected === node.id ? " active" : "") +
+              (selected !== node.id && filter !== "all" && node.type !== filter ? " dim" : "")}
+            style={{ "--node-color": palette[node.type] }}
+            onClick={() => onSelect(node.id)}
+          >
+            <strong>{node.name}</strong>
+            <small>{node.sub}</small>
+          </button>
+        ))}
+      </div>
+      <Canvas camera={{ position: [1.3, 3.1, 15], fov: 41 }} dpr={[1, 1.6]}>
+        <color attach="background" args={["#161915"]} />
+        <fog attach="fog" args={["#161915", 21, 43]} />
+        <hemisphereLight args={["#fff0d9", "#45485e", 1.38]} />
+        <directionalLight position={[-5, 7, 5]} intensity={2.4} color="#fff4dc" />
+        <directionalLight position={[5, 3, -5]} intensity={2.1} color="#b1ceff" />
+        <gridHelper args={[52, 52, "#706550", "#423e34"]} position={[0, -3.82, 0]} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.84, 0]}>
+          <planeGeometry args={[52, 52]} />
+          <meshStandardMaterial color="#22231e" roughness={0.94} />
+        </mesh>
+        <GraphCamera mode={cameraMode} focus={focus} controls={controls} />
+        <ProjectGraphLabels nodes={visible} labels={labels} />
+        {edges.map(([from, to, type]) => {
+          const kind = from === "other" || to === "other" ? visibleById.other.type : type;
+          return (
+            <FlowEdge
+              key={`${from}-${to}`}
+              from={visibleById[from].pos}
+              to={visibleById[to].pos}
+              color={palette[kind]}
+              playing={playing}
+              dim={filter !== "all" && kind !== filter}
+              highlighted={selected === from || selected === to}
+            />
+          );
+        })}
+        {visible.map((node) => (
+          <EvidenceNode
+            key={node.id}
+            node={node}
+            color={palette[node.type]}
+            selected={selected === node.id}
+            onSelect={onSelect}
+            playing={playing}
+            dim={selected !== node.id && filter !== "all" && node.type !== filter}
+          />
+        ))}
         <OrbitControls
-          key={focus}
+          ref={controls}
           autoRotate={autoOrbit && playing}
           autoRotateSpeed={0.45}
-          enableRotate={true}
-          enablePan
-          enableZoom
-          minDistance={7}
-          maxDistance={30}
-          maxPolarAngle={Math.PI*0.82}
+          minDistance={6}
+          maxDistance={42}
+          maxPolarAngle={Math.PI * 0.79}
           enableDamping
           dampingFactor={0.07}
         />
-      </Suspense>
-    </Canvas>
+      </Canvas>
+    </div>
   );
 }
-function GraphCamera({mode}) {
- const {camera,size}=useThree();
- useEffect(()=>{camera.position.set(mode==="top"?0:1,mode==="top"?0:6,size.width<650?22:17);camera.lookAt(0,0,0);camera.updateProjectionMatrix();},[camera,size.width,mode]);
- return null;
+function GraphCamera({ mode, focus, controls }) {
+  const { camera, size } = useThree();
+  const aspect = size.width / Math.max(size.height, 1);
+  useEffect(() => {
+    if (!controls.current || aspect <= 0) return;
+    const distance = THREE.MathUtils.clamp(19.5 / aspect, 13, 34);
+    controls.current.target.set(0.15, -0.3, 0);
+    const front = mode === "front";
+    camera.position.set(front ? 0.15 : 1.25, front ? -0.3 : 3, distance);
+    controls.current.update();
+  }, [aspect, camera, controls, focus, mode]);
+  return null;
 }
 class GraphBoundary extends React.Component {
   constructor(p) {
@@ -510,7 +553,7 @@ function App() {
   const [scenario, setScenario] = useState("mixed"),
     [selected, setSelected] = useState("bakery"),
     [view, setView] = useState("investigation"),
-    [playing, setPlaying] = useState(true),
+    [playing, setPlaying] = useState(() => !window.matchMedia("(prefers-reduced-motion: reduce)").matches),
     [bank, setBank] = useState(true),
     [evidence, setEvidence] = useState(true),
     [focus, setFocus] = useState(0),
@@ -596,15 +639,8 @@ function App() {
             <small>MERCHANT INTELLIGENCE</small>
           </span>
         </a>
-        <div className="workspace">
-          <span className="workspace-icon">P</span>
-          <div>
-            Paarth’s workspace<small>Investigation sandbox</small>
-          </div>
-          <ChevronDown size={14} />
-        </div>
         <div className="nav-label">WORKSPACE</div>
-        <nav>
+        <nav aria-label="Workspace">
           {[
             ["investigation", Network, "Investigation"],
             ["transactions", Activity, "Transactions"],
@@ -615,6 +651,8 @@ function App() {
             <button
               key={id}
               className={view === id ? "active" : ""}
+              aria-current={view === id ? "page" : undefined}
+              title={label}
               onClick={() => setView(id)}
             >
               <Icon size={18} />
@@ -623,14 +661,6 @@ function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-story">
-          <div className="tiny-label">THE QUESTION</div>
-          <p>Does the activity match the business?</p>
-          <span>Follow the evidence.</span>
-          <div className="mini-network">
-            ◉ <span>────</span> ◉ <span>────</span> ◎
-          </div>
-        </div>
         <div className="sidebar-bottom">
           <span className="status-dot" /> Synthetic event replay
           <small>No live payment connection</small>
@@ -648,7 +678,7 @@ function App() {
             Workspace <ChevronRight size={13} />{" "}
             <span>
               {view === "investigation"
-                ? "Follow the hidden connection"
+                ? "Investigation"
                 : view.charAt(0).toUpperCase() + view.slice(1)}
             </span>
           </div>
@@ -656,6 +686,10 @@ function App() {
             <span className="demo-tag">
               <span /> DEMO ENVIRONMENT
             </span>
+            <nav className="demo-app-links" aria-label="Demo apps">
+              <a href={new URL("/bakery.html", checkoutOrigin).href}>Cake shop</a>
+              <a href={new URL("/sportsbook.html", checkoutOrigin).href}>Sportsbook</a>
+            </nav>
             <button
               className="icon-btn"
               title="Export case"
@@ -668,12 +702,12 @@ function App() {
         </header>
         <div className="content">
           <div className="page-heading">
-            <div className="eyebrow">FOLLOW THE MONEY. VERIFY THE PURPOSE.</div>
+            <div className="eyebrow"><span /> CASE ML-2041 / SRB-2041</div>
             <div className="title-row">
               <div>
                 <h1>
                   {view === "investigation"
-                    ? "Follow the hidden connection"
+                    ? "Payment investigation"
                     : view === "transactions"
                       ? "Transaction explorer"
                       : view === "review"
@@ -684,7 +718,7 @@ function App() {
                 </h1>
                 <p>
                   {view === "investigation"
-                    ? "A spatial evidence room. Every payment has a story. Uncover the one that matters."
+                    ? "Trace two ₹500 payments to Sunrise Bakery and compare the evidence for each checkout."
                     : view === "transactions"
                       ? "Inspect individual payments and their supporting evidence."
                       : view === "review"
@@ -695,8 +729,9 @@ function App() {
                 </p>
               </div>
               <div className="scenario-picker">
-                <label>REPLAY SCENARIO</label>
+                <label htmlFor="replay-scenario">REPLAY SCENARIO</label>
                 <select
+                  id="replay-scenario"
                   value={scenario}
                   onChange={(e) => changeScenario(e.target.value)}
                 >
@@ -709,6 +744,9 @@ function App() {
               </div>
             </div>
           </div>
+          {checkoutReference && view === "investigation" && (
+            <CheckoutCase reference={checkoutReference} />
+          )}
           <div className="stats">
             <Metric
               label="Payments observed"
@@ -752,17 +790,16 @@ function App() {
           </div>
           {view === "investigation" && (
             <>
-              <MoneyTrail bank={bank} scenario={scenario} onSelect={id=>{setSelected(id);document.querySelector('.graph-panel')?.scrollIntoView({behavior:'smooth',block:'center'});}} onReview={()=>setView('review')}/>
               <div className="investigation-grid">
                 <section className="graph-panel">
                   <div className="panel-heading">
                     <div>
-                      <span className="green-square" /> Spatial intelligence{" "}
+                      <span className="green-square" /> Evidence graph{" "}
                       <span className="muted">/ SRB-2041</span>
                     </div>
                     <div className="graph-actions">
                       <button
-                        title="Pause animation"
+                        title={playing ? "Pause animation" : "Resume animation"}
                         onClick={() => setPlaying(!playing)}
                       >
                         {playing ? <Pause size={15} /> : <Play size={15} />}
@@ -800,7 +837,12 @@ function App() {
                       onSelect={setSelected}
                     />
                     <div className="graph-hint">
-                      {hasWebGL ? "3D SPACE · Drag to orbit · Right-drag to pan · Scroll to zoom" : "COMPATIBILITY VIEW · WebGL unavailable · Drag to pan"}
+                      {hasWebGL ? (
+                        <>
+                          <span className="graph-hint-pointer">Drag to orbit · Right-drag to pan · Scroll to zoom</span>
+                          <span className="graph-hint-touch">Drag to orbit · Pinch to zoom</span>
+                        </>
+                      ) : "Compatibility view · Drag to pan"}
                     </div>
                   </div>
                   <div className="graph-footer">
@@ -814,6 +856,7 @@ function App() {
                         <button
                           onClick={() => setFilter(id)}
                           className={filter === id ? "chosen" : ""}
+                          aria-pressed={filter === id}
                           key={id}
                         >
                           <i style={{ background: palette[id] || "#95a9bc" }} />
@@ -842,6 +885,15 @@ function App() {
                   onImpact={() => setView("impact")}
                 />
               </div>
+              <MoneyTrail
+                bank={bank}
+                scenario={scenario}
+                onSelect={(id) => {
+                  setSelected(id);
+                  document.querySelector(".graph-panel")?.scrollIntoView({ block: "center" });
+                }}
+                onReview={() => setView("review")}
+              />
               <div className="bottom-grid">
                 <section className="timeline panel">
                   <div className="section-heading">
@@ -901,7 +953,7 @@ function App() {
                     <span className="fixture">ILLUSTRATIVE</span>
                   </div>
                   <div className="risk-number">
-                    <strong style={{ color: palette[effectiveType] }}>
+                    <strong className={"assessment-" + effectiveType}>
                       {unresolved ? 56 : s.score}
                       <span>/100</span>
                     </strong>
@@ -1525,7 +1577,7 @@ function Metric({ label, value, detail, icon: Icon, type }) {
         {label}
         <Icon size={16} />
       </div>
-      <strong style={type ? { color: palette[type] } : {}}>{value}</strong>
+      <strong className={type ? "assessment-" + type : undefined}>{value}</strong>
       <small>{detail}</small>
     </div>
   );

@@ -108,7 +108,7 @@ export function Investigation({ c, api }) {
           <FileText />
           <div>
             <small>Merchant claim</small>
-            <b>{hasOrder ? "Chocolate cake" : "Awaiting order"}</b>
+            <b>{hasOrder ? recordName(c, "order") : "Awaiting order"}</b>
           </div>
           <ArrowDownRight />
           <div className={tone}>
@@ -173,7 +173,7 @@ export function Investigation({ c, api }) {
                 "Event time": new Date(record.event.time).toLocaleString(),
                 "Received time": new Date(record.received).toLocaleString(),
                 ...(record.event.label
-                  ? { "Observed button": record.event.label }
+                  ? { [record.key === "order" ? "Order description" : "Observed button"]: record.event.label }
                   : {}),
               }).map(([k, v]) => (
                 <React.Fragment key={k}>

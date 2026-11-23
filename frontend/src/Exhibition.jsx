@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import "@fontsource-variable/instrument-sans";
 import {
-  Aperture,
+  Network,
   ArrowUpRight,
   ChevronDown,
   Inbox,
@@ -12,23 +11,9 @@ import {
 import { Investigation } from "./Investigation.jsx";
 import "./exhibition.css";
 import { observeCheckout } from "./checkout-observer.js";
+import { api, endpoint, submitCheckout } from "./exhibition-checkout.js";
 
-const endpoint = new URLSearchParams(location.search).has("offline")
-  ? "/api/cases"
-  : import.meta.env.VITE_CASE_API || "/api/cases";
 const mode = endpoint === "/api/cases" ? "Local rehearsal" : "AWS feed";
-async function api(path = "", body) {
-  const response = await fetch(endpoint + path, {
-    method: body ? "POST" : "GET",
-    headers: body ? { "Content-Type": "application/json" } : {},
-    credentials: "same-origin",
-    signal: AbortSignal.timeout(8000),
-    body: body && JSON.stringify(body),
-  });
-  const value = await response.json();
-  if (!response.ok) throw Error(value.error || "Feed unavailable");
-  return value;
-}
 const statuses = [
   "All cases",
   "Purpose mismatch — review",
@@ -57,34 +42,13 @@ function Lab() {
   }, []);
   const [ref, setRef] = useState(() => crypto.randomUUID());
   const [payment, setPayment] = useState(() => crypto.randomUUID());
-  const send = (e) => api(e.kind === "payment" ? "/provider" : "/evidence", e);
   async function checkout() {
     setBusy(true);
-    const base = {
-      ref,
-      payment,
-      amount: 50000,
-      currency: "INR",
-      merchant: "SRB-2041",
-    };
-    const event = (kind, time = new Date().toISOString()) => ({
-      ...base,
-      id: crypto.randomUUID(),
-      kind,
-      time,
-    });
-    const paid = event("payment"),
-      click = observer.current;
     try {
-      await send(paid);
-      setRun(paid);
-      setMessage("Payment confirmed · waiting for evidence");
-      if (scenario === "Conflicting wallet credit") await send(event("order"));
-      await new Promise((resolve) => setTimeout(resolve, delay * 1000));
-      if (["Cake sale", "Unverified"].includes(scenario))
-        await send(event("order"));
-      if (scenario !== "Unverified" && click?.ref === ref) await send(click);
-      if (scenario === "Conflicting wallet credit") await send(event("credit"));
+      await submitCheckout({ scenario, delay, ref, payment, click: observer.current }, (paid) => {
+        setRun(paid);
+        setMessage("Payment confirmed · waiting for evidence");
+      });
       setMessage("Run received · inspect the workbench");
     } catch (e) {
       setMessage(e.message);
@@ -285,7 +249,7 @@ export default function Exhibition() {
   return (
     <main className="exhibit">
       <header>
-        <Aperture className="brand-icon" />
+        <Network className="brand-icon" aria-hidden="true" />
         <strong>MerchantLens</strong>
         <span className="mode-tag">{mode} · Simulated funds</span>
         <a
@@ -316,7 +280,7 @@ export default function Exhibition() {
             </span>
           </div>
           <div className="workgrid">
-            <nav>
+            <nav aria-label="Case queue">
               <h2>
                 Case queue <em>{list.length}</em>
               </h2>

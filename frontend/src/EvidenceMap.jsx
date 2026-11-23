@@ -55,10 +55,13 @@ const labels = {
   storefront: "Storefront",
   refund: "Provider",
 };
-export const recordName = (c, key) =>
-  key === "delivery" && c.fulfilment?.method === "Pickup"
-    ? "Cake collected"
-    : records[key][0];
+export function recordName(c, key) {
+  if (key === "delivery" && c.fulfilment?.method === "Pickup") return "Cake collected";
+  if (key === "order") {
+    return c.nodes.find((node) => node.key === "order")?.event.label || records.order[0];
+  }
+  return records[key][0];
+}
 export const relationName = (c, key) =>
   key === "delivery" && c.fulfilment?.method === "Pickup"
     ? "collection for order"
@@ -210,7 +213,7 @@ export function EvidenceMap({
                   <text x="-47" y={pay ? -13 : -4} className="node-type">
                     {type}
                   </text>
-                  <text x="-69" y={pay ? 27 : 18} className="node-title">
+                  <text x="-69" y={pay ? 27 : 18} className="node-title" data-record={n.key}>
                     {name}
                   </text>
                 </g>
