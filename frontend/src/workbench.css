@@ -341,19 +341,23 @@ body {
   pointer-events: none;
 }
 
-.graph-labels .spatial-label {
+.graph-node-control {
   position: absolute;
   top: 0;
   left: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
   visibility: hidden;
-  min-width: 0;
-  padding: 6px 8px;
-  pointer-events: auto;
 }
 
-.graph-labels .spatial-label.active,
-.graph-labels .spatial-label:hover,
-.graph-labels .spatial-label:focus-visible {
+.graph-node-control.merchant {
+  width: 50px;
+  height: 48px;
+}
+
+.graph-node-control[aria-pressed="true"],
+.graph-node-control:focus-visible {
   z-index: 1;
 }
 
@@ -366,16 +370,25 @@ body {
 }
 
 .graph-overlay,
-.camera-presets,
-.spatial-label {
+.camera-presets {
   background: #201d17;
   border: 1px solid #777063;
   color: var(--ml-on-dark);
   border-radius: 0;
 }
 
-.spatial-label strong {
+.spatial-label {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 8px;
+  border: 1px solid var(--node-color);
+  background: #201d17;
   color: var(--ml-on-dark);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .graph-hint-touch {
@@ -396,8 +409,7 @@ body {
 .graph-hint,
 .graph-footer,
 .camera-presets button,
-.legend button,
-.spatial-label small {
+.legend button {
   color: var(--ml-dark-muted);
 }
 
@@ -671,18 +683,6 @@ td {
     top: 48px;
     left: 14px;
     right: auto;
-  }
-
-  .graph-labels .spatial-label {
-    padding: 4px 5px;
-  }
-
-  .graph-labels .spatial-label strong {
-    font-size: 10px;
-  }
-
-  .graph-labels .spatial-label small {
-    display: none;
   }
 
   .decision-actions {
