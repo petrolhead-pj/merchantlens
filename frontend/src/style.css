@@ -1843,8 +1843,6 @@ h1{font-size:clamp(27px,2.8vw,43px);letter-spacing:-1.8px;color:#f2f7ff}
 .graph-hint{color:#85a7cd;bottom:16px;font-size:10px;letter-spacing:.3px}
 .graph-footer{background:#091428;border-top:1px solid #1b3456}
 .evidence-panel,.panel{border-radius:16px;background:linear-gradient(155deg,#101e35,#091224);border-color:#213753}
-.spatial-label{min-width:112px;text-align:center;background:linear-gradient(130deg,#0b1a30e8,#071020d9);border:1px solid #31517799;padding:8px 12px;border-radius:7px;box-shadow:0 6px 20px #0006;backdrop-filter:blur(8px)}
-.spatial-label strong{display:block;font-size:11px;white-space:nowrap;color:#e6f3ff}.spatial-label small{display:block;font-size:8px;margin-top:3px;color:#829cbd;white-space:nowrap}.spatial-label.active{border-color:var(--node-color);box-shadow:0 0 24px #218aff33}.spatial-label.dim{opacity:.25}
 .graph-node{box-shadow:0 8px 22px #0008,0 0 15px #268aff15}
 .graph-actions button{border:1px solid #29466a;border-radius:5px;padding:5px;background:#0a1930}
 .green-square{box-shadow:0 0 12px #329dff}

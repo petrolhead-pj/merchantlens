@@ -173,14 +173,12 @@ function ProjectGraphLabels({ nodes, labels }) {
     for (const node of nodes) {
       const label = labels.current[node.id];
       if (!label) continue;
-      const [x, y, z] = node.pos;
-      const labelOffset = node.id === "endpoint" && size.width < 500 ? 0.99 : 0.72;
-      point.current.set(x, y - labelOffset, z + 0.25).project(camera);
+      point.current.set(...node.pos).project(camera);
       const { x: px, y: py, z: depth } = point.current;
       const screenX = ((px + 1) * size.width) / 2;
       const screenY = ((1 - py) * size.height) / 2;
       label.style.visibility = depth >= -1 && depth <= 1 ? "visible" : "hidden";
-      label.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translateX(-50%)`;
+      label.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -50%)`;
     }
   });
   return null;
@@ -244,13 +242,13 @@ function WebGLGraph({
             ref={(element) => { labels.current[node.id] = element; }}
             aria-label={"Inspect " + node.name}
             aria-pressed={selected === node.id}
-            className={"spatial-label" + (selected === node.id ? " active" : "") +
-              (selected !== node.id && filter !== "all" && node.type !== filter ? " dim" : "")}
+            className={node.id === "bakery" ? "graph-node-control merchant" : "graph-node-control"}
             style={{ "--node-color": palette[node.type] }}
             onClick={() => onSelect(node.id)}
           >
-            <strong>{node.name}</strong>
-            <small>{node.sub}</small>
+            {selected === node.id && (
+              <span className="spatial-label" aria-hidden="true">{node.name}</span>
+            )}
           </button>
         ))}
       </div>
@@ -477,6 +475,7 @@ function SVGGraph({
               transform={`translate(${x},${y})`}
               role="button"
               aria-label={"Inspect " + n.name}
+              aria-pressed={selected === n.id}
               tabIndex="0"
               onClick={() => onSelect(n.id)}
               onKeyDown={(e) => {
@@ -524,23 +523,18 @@ function SVGGraph({
                         ? "↗"
                         : "⌘"}
               </text>
-              <text
-                textAnchor="middle"
-                y={n.id === "bakery" ? 49 : 42}
-                fill="#cfdeea"
-                fontSize={n.id === "bakery" ? 13 : 11}
-                fontWeight="500"
-              >
-                {n.name}
-              </text>
-              <text
-                textAnchor="middle"
-                y={n.id === "bakery" ? 64 : 56}
-                fill="#658397"
-                fontSize="8"
-              >
-                {n.sub}
-              </text>
+              {selected === n.id && (
+                <text
+                  textAnchor="middle"
+                  y={n.id === "bakery" ? 49 : 42}
+                  fill="#cfdeea"
+                  fontSize="13"
+                  fontWeight="600"
+                  aria-hidden="true"
+                >
+                  {n.name}
+                </text>
+              )}
             </g>
           );
         })}
@@ -551,7 +545,7 @@ function SVGGraph({
 function savedCase(id){try{return JSON.parse(localStorage.getItem('merchantlens-case-'+id)||'{}');}catch{return {};}}
 function App() {
   const [scenario, setScenario] = useState("mixed"),
-    [selected, setSelected] = useState("bakery"),
+    [selected, setSelected] = useState(null),
     [view, setView] = useState("investigation"),
     [playing, setPlaying] = useState(() => !window.matchMedia("(prefers-reduced-motion: reduce)").matches),
     [bank, setBank] = useState(true),
@@ -583,7 +577,7 @@ function App() {
   function changeScenario(v) {
     setVerified(false);
     setScenario(v);
-    setSelected("bakery");
+    setSelected(null);
     setEvidence(true);
     const previous=savedCase(v);
     setRequested(previous.requested??false);
@@ -868,8 +862,8 @@ function App() {
                   </div>
                 </section>
                 <EvidencePanel
+                  selected={selected ?? "bakery"}
                   {...{
-                    selected,
                     selectedName,
                     scenario,
                     evidence,
