@@ -5,15 +5,16 @@ body {
   margin: 0;
 }
 .exhibit {
-  --navy: #102336;
-  --ink: #172e40;
-  --muted: #536c79;
-  --line: #d7e1e4;
-  --teal: #006959;
+  --navy: var(--ml-dark);
+  --ink: var(--ml-ink);
+  --muted: var(--ml-muted);
+  --line: var(--ml-rule);
+  --teal: #286656;
   --red: #923524;
   --amber: #815718;
   min-height: 100vh;
-  background: #f2f5f6;
+  background: var(--ml-grid) var(--ml-paper);
+  background-size: var(--ml-grid-size);
   color: var(--ink);
   font:
     15px/1.45 "Instrument Sans Variable",
@@ -45,7 +46,7 @@ body {
 .exhibit button {
   background: white;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 0;
   padding: 7px 11px;
   font-size: 14px;
   font-weight: 600;
@@ -58,23 +59,27 @@ body {
   cursor: default;
 }
 .exhibit :focus-visible {
-  outline: 3px solid #db8c22;
+  outline: 2px solid var(--ml-blue);
   outline-offset: 2px;
 }
 .exhibit header {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #102336;
-  color: white;
+  background: var(--ml-dark-grid) var(--ml-dark);
+  background-size: 24px 24px;
+  color: var(--ml-on-dark);
   margin: 0 -2vw;
   padding: 11px 2vw;
   min-height: 53px;
 }
 .brand-icon {
-  color: #86dfc9;
-  width: 29px;
-  height: 29px;
+  background: var(--ml-orange);
+  color: var(--ink);
+  width: 32px;
+  height: 32px;
+  padding: 5px;
+  flex: none;
 }
 .exhibit header strong {
   font-size: 22px;
@@ -86,18 +91,18 @@ body {
   padding-left: 18px;
   border-left: 1px solid #536473;
   font-size: 13px;
-  color: #c6d5df;
+  color: var(--ml-dark-muted);
 }
 .exhibit header a {
-  color: #dce7ec;
+  color: var(--ml-on-dark);
   text-decoration: none;
   font-size: 14px;
   padding: 5px 9px;
 }
 .exhibit header a:first-of-type {
-  background: #ddf3ed;
-  color: #143c37;
-  border-radius: 6px;
+  background: var(--ml-orange);
+  color: var(--ink);
+  border-radius: 0;
 }
 .heading,
 .section-head,
@@ -112,7 +117,13 @@ body {
   gap: 10px;
 }
 .heading {
-  padding: 17px 0;
+  padding: 28px 0 18px;
+}
+.heading small,
+.section-head > span,
+.mode-tag {
+  font-family: var(--ml-mono);
+  letter-spacing: 0.03em;
 }
 .heading small,
 .exhibit aside small,
@@ -124,9 +135,9 @@ body {
   font-weight: 550;
 }
 .heading h1 {
-  font-size: clamp(29px, 2.6vw, 42px);
-  line-height: 1.13;
-  letter-spacing: -1.5px;
+  font-size: clamp(34px, 4vw, 58px);
+  line-height: 1.05;
+  letter-spacing: -0.055em;
 }
 .heading [role="status"] {
   font-size: 14px;
@@ -159,10 +170,10 @@ body {
 .workgrid nav,
 .workgrid aside,
 .investigation {
-  background: white;
-  border-radius: 12px;
+  background: var(--ml-card);
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ink);
+  box-shadow: var(--ml-shadow);
 }
 .workgrid h2 {
   font-size: 18px;
@@ -187,8 +198,8 @@ body {
 .workgrid select {
   border: 1px solid var(--line);
   padding: 7px;
-  background: #f6f8f8;
-  border-radius: 6px;
+  background: var(--ml-paper);
+  border-radius: 0;
   width: 100%;
   margin: 10px 0;
 }
@@ -197,13 +208,14 @@ body {
   display: block;
   text-align: left;
   border-color: transparent;
-  border-bottom-color: #e5ecec;
+  border-bottom: 1px dashed var(--line);
+  background: transparent;
   padding: 11px 7px;
-  border-radius: 5px;
+  border-radius: 0;
 }
 .exhibit nav .active {
-  background: #e3f2ee;
-  box-shadow: inset 3px 0 #16836e;
+  background: #f9e7cd;
+  box-shadow: inset 3px 0 #b85e15;
 }
 .exhibit nav button b {
   display: flex;
@@ -243,10 +255,13 @@ body {
   padding: 13px 16px;
   min-height: 54px;
 }
+.investigation > .section-head {
+  background: var(--ml-recess);
+  border-bottom: 1px solid var(--ink);
+}
 .tabs {
-  gap: 2px;
-  background: #edf2f3;
-  border-radius: 7px;
+  gap: 3px;
+  background: var(--ml-recess);
   padding: 3px;
 }
 .exhibit .tabs button {
@@ -268,12 +283,13 @@ body {
   height: 16px;
 }
 .exhibit .tabs [aria-pressed="true"] {
-  background: white;
-  box-shadow: 0 1px 4px #132d3a26;
+  background: var(--ml-orange);
+  color: var(--ink);
 }
 .map {
-  background: #102336;
-  color: white;
+  background: var(--ml-dark-grid) var(--ml-dark);
+  background-size: 24px 24px;
+  color: var(--ml-on-dark);
 }
 .map-header,
 .map-foot {
@@ -281,11 +297,11 @@ body {
 }
 .map-header > span,
 .map-foot > span {
-  color: #c0cfd9;
+  color: var(--ml-dark-muted);
   font-size: 13px;
 }
 .map-header i {
-  background: #76cdb7;
+  background: var(--ml-orange);
 }
 .map-header button,
 .map-foot div,
@@ -298,8 +314,8 @@ body {
   gap: 6px;
 }
 .map-header button {
-  background: #bce9dc;
-  color: #163d35;
+  background: var(--ml-orange);
+  color: var(--ink);
   border: 0;
 }
 .map-scroll {
@@ -319,8 +335,8 @@ body {
   gap: 3px;
 }
 .exhibit .map-foot button {
-  background: #1c3348;
-  color: white;
+  background: #323027;
+  color: var(--ml-on-dark);
   border: 0;
   font-size: 13px;
   padding: 6px;
@@ -331,8 +347,8 @@ body {
   color: #9abcbf;
 }
 .node > rect {
-  fill: #20394c;
-  stroke: #506d7b;
+  fill: #30312d;
+  stroke: #8b8475;
 }
 .node text,
 .edge text {
@@ -346,6 +362,10 @@ body {
   font-size: 18px;
   font-weight: 650;
   letter-spacing: -0.6px;
+}
+
+.node-title[data-record="order"] {
+  font-size: 15px;
 }
 .node.money > rect {
   fill: #def4ed;
@@ -389,7 +409,7 @@ body {
   font: 600 13px "Instrument Sans Variable";
   text-anchor: middle;
   paint-order: stroke;
-  stroke: #102336;
+  stroke: var(--ml-dark);
   stroke-width: 5;
   stroke-linejoin: round;
 }
@@ -465,7 +485,7 @@ body {
   font-size: 14px;
 }
 .review {
-  border-top: 1px solid var(--line);
+  border-top: 1px dashed var(--line);
 }
 .review strong {
   display: block;
@@ -508,9 +528,10 @@ body {
 }
 .empty {
   grid-column: span 2;
-  background: var(--navy);
-  border-radius: 12px;
-  color: white;
+  background: var(--ml-dark-grid) var(--navy);
+  background-size: 24px 24px;
+  color: var(--ml-on-dark);
+  box-shadow: var(--ml-shadow);
   min-height: 360px;
   display: grid;
   align-content: center;
@@ -520,10 +541,10 @@ body {
   padding: 20px;
 }
 .empty svg {
-  color: #a4dfd1;
+  color: var(--ml-orange);
 }
 .empty a {
-  color: #a4dfd1;
+  color: var(--ml-orange);
 }
 .lab {
   max-width: 940px;
@@ -532,10 +553,11 @@ body {
 .shop {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  background: #fffaf4;
-  border-radius: 18px;
+  background: var(--ml-card);
+  border: 1px solid var(--ink);
+  box-shadow: var(--ml-shadow);
   overflow: hidden;
-  color: #38261e;
+  color: var(--ink);
 }
 .product,
 .wallet-art {
@@ -549,24 +571,25 @@ body {
   align-self: center;
 }
 .product-info > small {
-  color: #8b4f38;
+  color: var(--muted);
 }
-.product-info h1 {
-  font:
-    500 clamp(38px, 4.5vw, 66px) / 1 Georgia,
-    serif;
-  letter-spacing: -2.7px;
+.product-info h1,
+.product-info h2 {
+  font-size: clamp(34px, 4vw, 58px);
+  font-weight: 750;
+  line-height: 0.98;
+  letter-spacing: -0.06em;
   margin: 12px 0;
 }
 .product-info p {
-  color: #66584f;
+  color: var(--muted);
 }
 .total {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin: 25px 0 12px;
-  border-top: 1px solid #e1d5ca;
+  border-top: 1px dashed var(--line);
   padding-top: 17px;
 }
 .total b {
@@ -574,8 +597,8 @@ body {
 }
 .product-info [data-ref] {
   width: 100%;
-  background: #513222;
-  color: white;
+  background: var(--ml-dark);
+  color: var(--ml-on-dark);
   padding: 13px;
   border: 0;
 }
@@ -593,8 +616,9 @@ body {
   margin-top: 8px;
 }
 .wallet-art {
-  background: #143c48;
-  color: #c0fae5;
+  background: var(--ml-dark-grid) var(--ml-dark);
+  background-size: 24px 24px;
+  color: var(--ml-on-dark);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -605,11 +629,14 @@ body {
 .wallet-art b {
   font-size: 68px;
 }
+.wallet-art svg {
+  color: var(--ml-orange);
+}
 .presenter {
   margin-top: 15px;
-  background: white;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  background: var(--ml-card);
+  border: 1px solid var(--ink);
+  box-shadow: var(--ml-shadow);
   padding: 10px 16px;
 }
 .exhibit .presenter summary {
@@ -679,7 +706,7 @@ body {
     order: 0;
   }
   .workgrid nav {
-    order: 2;
+    order: -1;
     max-height: 250px;
   }
   .empty {

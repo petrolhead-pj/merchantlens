@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Aperture, ShoppingBag, Wallet, ArrowRight } from "lucide-react";
-import "@fontsource-variable/instrument-sans";
+import { Network, ShoppingBag, Wallet, ArrowUpRight, ScanLine, PackageCheck } from "lucide-react";
 import "./exhibition.css";
 import "./product.css";
 import { observeCheckout } from "./checkout-observer.js";
@@ -31,33 +30,63 @@ async function request(op, body) {
     throw Object.assign(Error(result.error), { status: response.status });
   return result;
 }
-function Login({ run }) {
+const signInContent = {
+  customer: {
+    title: "Sunrise Bakery",
+    description: "Order a chocolate cake, track fulfilment, or add funds to your simulated wallet.",
+    icon: ShoppingBag,
+  },
+  merchant: {
+    title: "Manage fulfilment",
+    description: "Accept orders and update their progress through preparation, pickup, or delivery.",
+    icon: PackageCheck,
+  },
+  analyst: {
+    title: "Review payment evidence",
+    description: "Inspect checkout records and document your assessment of each payment.",
+    icon: ScanLine,
+  },
+};
+
+function Login({ run, busy }) {
+  const { title, description, icon: Icon } = signInContent[role];
   return (
-    <form
-      className="login"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const fields = new FormData(e.currentTarget);
-        run(() => request("login", Object.fromEntries(fields)), "Signed in");
-      }}
-    >
-      <small>{areas[role]}</small>
-      <h1>Welcome back</h1>
-      <label>
-        Account
-        <input name="user" autoComplete="username" required />
-      </label>
-      <label>
-        Password
-        <input
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-        />
-      </label>
-      <button>Sign in</button>
-    </form>
+    <div className="login-layout">
+      <section className="login-intro" aria-labelledby="portal-title">
+        <small>{areas[role]}</small>
+        <h1 id="portal-title">{title}</h1>
+        <p>{description}</p>
+        <div className="portal-art" aria-hidden="true">
+          <span className="portal-icon"><Icon size={56} strokeWidth={1.35} /></span>
+        </div>
+      </section>
+      <form
+        className="login"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fields = new FormData(e.currentTarget);
+          run(() => request("login", Object.fromEntries(fields)), "Signed in");
+        }}
+      >
+        <h2>Sign in</h2>
+        <label>
+          Account
+          <input name="user" autoComplete="username" required />
+        </label>
+        <label>
+          Password
+          <input
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+          />
+        </label>
+        <button disabled={busy}>
+          Sign in <ArrowUpRight size={18} aria-hidden="true" />
+        </button>
+      </form>
+    </div>
   );
 }
 function Customer({ state, run, busy }) {
@@ -130,7 +159,7 @@ function Customer({ state, run, busy }) {
               </button>
             ))}
           </div>
-          <h1>{kind === "cake" ? "Chocolate cake" : "Wallet top-up"}</h1>
+          <h2>{kind === "cake" ? "Chocolate cake" : "Wallet top-up"}</h2>
           <p>
             {kind === "cake"
               ? "Chocolate sponge with cocoa frosting."
@@ -149,7 +178,7 @@ function Customer({ state, run, busy }) {
               </select>
             </label>
           )}
-          <label>
+          <label className="consent">
             <input
               type="checkbox"
               checked={consent}
@@ -179,6 +208,7 @@ function Customer({ state, run, busy }) {
                 ? "Buy chocolate cake · ₹500"
                 : "Top up demo wallet · ₹500"
               : "Continue to checkout"}
+            <ArrowUpRight size={18} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -193,7 +223,7 @@ function Customer({ state, run, busy }) {
         {state.ledger.length ? (
           state.ledger.map((l) => (
             <article key={l.id}>
-              <b>Wallet credit　+{money(l.amount)}</b>
+              <b>Wallet credit · +{money(l.amount)}</b>
               <small>
                 {new Date(l.posted).toLocaleString()} · Payment {l.payment}
               </small>
@@ -271,8 +301,8 @@ function Analyst({ cases, refresh }) {
         </div>
       </div>
       <div className="workgrid">
-        <nav>
-          <h2>Case queue</h2>
+        <nav aria-label="Case queue">
+          <h2>Case queue <em>{rows.length}</em></h2>
           <select
             aria-label="Filter cases"
             value={filter}
@@ -292,6 +322,7 @@ function Analyst({ cases, refresh }) {
               key={r.id}
               data-case-id={r.id}
               className={c?.id === r.id ? "active" : ""}
+              aria-current={c?.id === r.id ? "true" : undefined}
               onClick={() => select(r.id)}
             >
               <b>Sunrise Bakery · ₹500</b>
@@ -342,7 +373,9 @@ export default function Product() {
         if (e.status === 401) {
           setState(null);
           setFeed("Signed out");
-        } else setFeed("Feed interrupted — showing last received state");
+        } else {
+          setFeed(state ? "Feed interrupted · showing last received state" : "Feed unavailable");
+        }
       }
     }
   }
@@ -369,22 +402,27 @@ export default function Product() {
   return (
     <main className="exhibit product-app">
       <header>
-        <Aperture className="brand-icon" />
-        <strong>MerchantLens</strong>
-        <span className="mode-tag">{state?.mode || "Simulated payments"}</span>
-        {Object.entries(areas).map(([k, v]) => (
-          <a
-            key={k}
-            href={"/" + k}
-            aria-current={k === role ? "page" : undefined}
-          >
-            {v}
-          </a>
-        ))}
+        <div className="product-brand">
+          <Network className="brand-icon" aria-hidden="true" />
+          <strong>MerchantLens</strong>
+        </div>
+        <nav className="role-nav" aria-label="Application areas">
+          {Object.entries(areas).map(([k, v]) => (
+            <a
+              key={k}
+              href={"/" + k}
+              aria-current={k === role ? "page" : undefined}
+            >
+              {v}
+            </a>
+          ))}
+        </nav>
       </header>
       <div className="session">
         <span role="status">{msg}</span>
-        <span>
+        <span className="session-feed">
+          <strong>{state?.mode || "Simulated payments"}</strong>
+          {" · "}
           {feed}
           {state ? " · " + state.user : ""}
         </span>
@@ -397,13 +435,28 @@ export default function Product() {
         )}
       </div>
       {state === undefined ? (
-        <p>Connecting to the application…</p>
+        <div className="app-loading">
+          {feed === "Feed unavailable" ? (
+            <>
+              <h1>Application unavailable</h1>
+              <p role="status">MerchantLens could not reach the application server.</p>
+              <button onClick={() => {
+                setFeed("Connecting");
+                refresh();
+              }}>
+                Try again
+              </button>
+            </>
+          ) : (
+            <p role="status">Connecting to the application…</p>
+          )}
+        </div>
       ) : !state ? (
-        <Login run={run} />
+        <Login run={run} busy={busy} />
       ) : role === "customer" ? (
         <Customer state={state} run={run} busy={busy} />
       ) : role === "merchant" ? (
-        <section className="business-panel">
+        <section className="business-panel fulfilment">
           <small>Sunrise Bakery · SRB-2041</small>
           <h1>Fulfilment queue</h1>
           <Orders

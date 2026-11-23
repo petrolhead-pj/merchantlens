@@ -1,0 +1,26 @@
+:root {
+  --ml-paper: #f5f0e3;
+  --ml-card: #fffaf0;
+  --ml-recess: #eee7d7;
+  --ml-ink: #191813;
+  --ml-muted: #625d51;
+  --ml-rule: #cfc5b3;
+  --ml-dark: #171613;
+  --ml-dark-rule: #454137;
+  --ml-on-dark: #fbf4e5;
+  --ml-dark-muted: #c8bfad;
+  --ml-orange: #ffa345;
+  --ml-blue: #2457a5;
+  --ml-font: "Instrument Sans Variable", "Segoe UI", sans-serif;
+  --ml-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --ml-shadow: 4px 4px 0 var(--ml-ink);
+  --ml-grid:
+    linear-gradient(to right, #685c4714 1px, transparent 1px),
+    linear-gradient(to bottom, #685c4714 1px, transparent 1px),
+    linear-gradient(to right, #685c470d 1px, transparent 1px),
+    linear-gradient(to bottom, #685c470d 1px, transparent 1px);
+  --ml-dark-grid:
+    linear-gradient(to right, #f5f0e311 1px, transparent 1px),
+    linear-gradient(to bottom, #f5f0e311 1px, transparent 1px);
+  --ml-grid-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
+}

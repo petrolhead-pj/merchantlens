@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sunrise Bakery — Celebration cakes</title>
+  <link rel="stylesheet" href="/src/bakery.css">
+</head>
+<body>
+  <div class="notice">Demo storefront · All payments are simulated</div>
+  <header class="site-header">
+    <a class="brand" href="./bakery.html"><span aria-hidden="true">✹</span> Sunrise Bakery</a>
+    <nav aria-label="Shop"><a href="#cakes">Our cakes</a><a href="#pickup">Pickup</a></nav>
+    <a class="bag" href="#checkout">Bag <span>1</span></a>
+  </header>
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Baked for celebrations</p>
+        <h1 id="hero-title">Good days<br>deserve cake.</h1>
+        <p>From chocolate fudge to vanilla berry, choose a cake for your next celebration.</p>
+        <a class="cta" href="#cakes">Shop cakes <span aria-hidden="true">↗</span></a>
+      </div>
+      <figure>
+        <img src="/chocolate-cake.jpg" alt="Sunrise Bakery chocolate layer cake with frosting">
+        <figcaption><span>Chocolate fudge</span><span>₹500</span></figcaption>
+      </figure>
+    </section>
+    <form id="cakes">
+      <section class="catalog" aria-labelledby="cakes-heading">
+        <p class="eyebrow">The cake counter</p>
+        <h2 id="cakes-heading">Choose your cake</h2>
+        <fieldset>
+          <legend class="sr-only">Cake flavour</legend>
+          <label class="product cocoa">
+            <input type="radio" name="cake" value="Chocolate fudge cake" checked>
+            <span class="flavour">Chocolate<br>fudge</span><span class="notes">Cocoa sponge · dark fudge</span><strong>₹500</strong>
+          </label>
+          <label class="product berry">
+            <input type="radio" name="cake" value="Vanilla berry cake">
+            <span class="flavour">Vanilla<br>berry</span><span class="notes">Vanilla sponge · berry compote</span><strong>₹500</strong>
+          </label>
+          <label class="product coffee">
+            <input type="radio" name="cake" value="Coffee caramel cake">
+            <span class="flavour">Coffee<br>caramel</span><span class="notes">Coffee sponge · caramel cream</span><strong>₹500</strong>
+          </label>
+        </fieldset>
+      </section>
+      <section class="checkout" id="checkout" aria-labelledby="checkout-heading">
+        <div><p class="eyebrow">Your bag</p><h2 id="checkout-heading">Order summary</h2><p id="selected-cake">Chocolate fudge cake</p></div>
+        <div class="pay-panel">
+          <p class="total"><span>Total</span><strong>₹500</strong></p>
+          <button id="pay" type="submit">Pay ₹500</button>
+          <a id="investigation" target="_blank" rel="noopener">Watch this payment in MerchantLens ↗</a>
+          <p id="status" role="status"></p>
+        </div>
+      </section>
+    </form>
+  </main>
+  <footer id="pickup"><strong>✹ Sunrise Bakery</strong><span>Demo order fulfilment is shown in MerchantLens.</span></footer>
+  <script type="module" src="/src/bakery.js"></script>
+</body>
+</html>
