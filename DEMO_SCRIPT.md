@@ -2,6 +2,20 @@
 
 Target 4:45. Paarth narrates, Shreyas operates, Anshul watches the clock and handles the pilot question. Suggested roles. Start with a reset, the main screen visible, and the poster beside the laptop.
 
+## Live two-phone pitch
+
+Before the jury arrives, sign in to the analyst and merchant screens. Connect both phones to the laptop's Wi-Fi or hotspot, then generate both codes under **Demo payment QR codes**. The codes expire after ten minutes.
+
+| Clock | Show |
+|---|---|
+| 0:00–0:40 | Introduce Sunrise Bakery. Both phone checkouts show the same payee and ₹500. Ask what would establish the purpose of each payment. |
+| 0:40–1:45 | User A scans the cake QR and confirms. Show the new payment in the analyst workbench. Advance the order through delivery in Merchant operations and show the 3D graph update to **Cake sale supported**. |
+| 1:45–2:55 | User B scans the wallet QR and confirms. Show the second payment, then click **Explain this flag**. Point to the paid reference and the wallet credit that conflicts with the declared bakery business. |
+| 2:55–3:40 | Open **View critical report** and show the case, payment and evidence IDs. Identify the delivery status shown on screen. Explain that the report asks an analyst to investigate a purpose mismatch. |
+| 3:40–4:45 | Compare the two paths using the payer filter. Explain which records would require independent sources in a PayU pilot, then use the A4 sheet to discuss the controlled evaluation. |
+
+## Seeded replay pitch
+
 | Clock | Action and spoken line |
 |---|---|
 | 0:00–0:25 | Point to the receipts. “Two customers pay ₹500 to the same verified bakery. What evidence would justify contacting the merchant about one checkout? We built MerchantLens to answer that analyst’s question.” |

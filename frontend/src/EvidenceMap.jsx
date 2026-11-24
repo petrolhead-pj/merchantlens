@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Banknote,
   CakeSlice,
@@ -9,12 +9,16 @@ import {
   MousePointer2,
   PackageCheck,
   Store,
+  User,
   Wallet,
   Minus,
   Plus,
   Maximize,
   RotateCcw,
 } from "lucide-react";
+const EvidenceGraph = lazy(() =>
+  import("./EvidenceScene.jsx").then(({ EvidenceGraph }) => ({ default: EvidenceGraph })),
+);
 
 export const records = {
   storefront: ["Checkout page", Monitor, 96, 46],
@@ -26,7 +30,8 @@ export const records = {
   merchant: ["Sunrise Bakery", Store, 605, 150],
   profile: ["Bakery business", Landmark, 605, 295],
   credit: ["Wallet credited", Wallet, 350, 338],
-  refund: ["Refund issued", Banknote, 350, 46],
+  refund: ["Refund issued", Banknote, 605, 46],
+  payer: ["Payer", User, 350, 68],
 };
 export const verbs = {
   storefront: "observed on",
@@ -38,6 +43,7 @@ export const verbs = {
   profile: "declares",
   credit: "credited wallet",
   refund: "refund for",
+  payer: "paid by",
 };
 export const decisive = (c) =>
   ["credit", "topup", "delivery", "order", "merchant"].find((k) =>
@@ -54,8 +60,10 @@ const labels = {
   delivery: "Courier record",
   storefront: "Storefront",
   refund: "Provider",
+  payer: "Demo customer",
 };
 export function recordName(c, key) {
+  if (key === "payer") return c.payer;
   if (key === "delivery" && c.fulfilment?.method === "Pickup") return "Cake collected";
   if (key === "order") {
     return c.nodes.find((node) => node.key === "order")?.event.label || records.order[0];
@@ -67,14 +75,75 @@ export const relationName = (c, key) =>
     ? "collection for order"
     : verbs[key];
 const point = (k) => records[k].slice(2);
-export function EvidenceMap({
-  c,
-  selected,
-  pick,
-  explain,
-  onExplain,
-  visible,
-}) {
+const depth = { storefront: -2.2, cake: 0.4, topup: 0.9, order: -1.5, delivery: 0.4,
+  payment: 0.4, merchant: -0.5, profile: -2.4, credit: 2.25, refund: 0.8, payer: -1.35 };
+const toneFor = (key) => ["credit", "topup"].includes(key) ? "alert" : key === "payment" ? "payment" : "neutral";
+const colors = { neutral: "#82c5cf", payment: "#9cf0d6", alert: "#ff9b82" };
+const models = {
+  storefront: "merchant", cake: "checkout", topup: "checkout", order: "evidence",
+  delivery: "parcels", payment: "checkout", merchant: "merchant", profile: "evidence",
+  credit: "account", refund: "account", payer: "customers",
+};
+
+class GraphFallback extends React.Component {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+export function EvidenceMap({ c, selected, pick, explain, onExplain, visible }) {
+  const [mode, setMode] = useState("3D");
+  const outcome = decisive(c);
+  const chosen = selected.replace("edge/", "");
+  const flat = <FlatEvidenceMap c={c} selected={selected} pick={pick} explain={explain} />;
+  const nodes = c.nodes.map(({ key }) => {
+    const [x, y] = point(key);
+    const name = recordName(c, key);
+    const type = key === "delivery" && c.fulfilment ? "Merchant record" : labels[key];
+    return {
+      id: key,
+      name,
+      label: type + " · " + name,
+      kind: models[key],
+      type: toneFor(key),
+      pos: [(x - 350) / 78, (218 - y) / 69, depth[key]],
+      showLabel: ["payer", "payment", "merchant", outcome].includes(key),
+    };
+  });
+  const edges = c.edges.map((edge) => ({
+    ...edge,
+    type: toneFor(edge.to),
+    highlighted: explain
+      ? ["merchant", "profile", "order", outcome].includes(edge.to)
+      : [edge.from, edge.to].includes(chosen),
+  }));
+  return <div hidden={!visible} className="map">
+    <div className="map-header">
+      <span><i /> Payment trace</span>
+      <div className="map-mode" role="group" aria-label="Graph view">
+        {["3D", "2D"].map((name) => <button key={name} type="button" aria-pressed={mode === name} onClick={() => setMode(name)}>{name}</button>)}
+      </div>
+      <button onClick={onExplain}><CheckCheck size={16} /> Explain this flag</button>
+    </div>
+    {mode === "3D" ? <GraphFallback fallback={<>
+      <p className="map-status" role="status">3D is unavailable in this browser. Showing the 2D graph.</p>
+      {flat}
+    </>}>
+      <Suspense fallback={<p className="map-status" role="status">Loading 3D graph…</p>}>
+        <EvidenceGraph nodes={nodes} edges={edges} colors={colors} selected={chosen}
+          onSelect={pick} playing={visible} label="3D payment evidence graph" compact />
+      </Suspense>
+    </GraphFallback> : flat}
+  </div>;
+}
+
+function FlatEvidenceMap({ c, selected, pick, explain }) {
   const [hover, setHover] = useState(null),
     [zoom, scale] = useState(1),
     [pan, move] = useState([0, 0]);
@@ -111,15 +180,7 @@ export function EvidenceMap({
     }
   };
   return (
-    <div hidden={!visible} className="map">
-      <div className="map-header">
-        <span>
-          <i /> Payment trace
-        </span>
-        <button onClick={onExplain}>
-          <CheckCheck size={16} /> Explain this flag
-        </button>
-      </div>
+    <>
       <div ref={viewport} className="map-scroll">
         <svg
           viewBox="0 0 700 436"
@@ -247,6 +308,6 @@ export function EvidenceMap({
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 }

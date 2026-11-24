@@ -8,9 +8,10 @@ const root=process.env.STALL_DIST || fileURLToPath(new URL('../frontend/dist/',i
 const port=Number(process.env.STALL_PORT || 4173);
 try{await access(resolve(root,'index.html'));}catch{console.error('Build first with npm run setup and npm run build.');process.exit(1);}
 const api=createServer();
-const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'};
+const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.woff2':'font/woff2','.jpg':'image/jpeg'};
 http.createServer(async(req,res)=>{
   if(req.url.startsWith('/api/')){api.emit('request',req,res);return;}
+  if(req.method==='GET' && req.url==='/'){res.writeHead(302,{Location:'/?offline'}).end();return;}
   try{
     const path=new URL(req.url,'http://localhost').pathname;
     const file=resolve(root,'.'+(path==='/'?'/index.html':decodeURIComponent(path)));

@@ -42,7 +42,7 @@ let server = await start(),
   browser,
   store;
 try {
-  browser = await chromium.launch({ channel: "msedge", headless: true });
+  browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || "msedge", headless: true });
   const login = async (page, role, user) => {
     await page.goto(base + "/" + role);
     await page.getByLabel("Account", { exact: true }).fill(user);
@@ -63,23 +63,33 @@ try {
     (await p.request.get(base + "/api/app/" + r + "/state")).json();
   const post = (p, role, op, data) =>
     p.request.post(base + "/api/app/" + role + "/" + op, { data });
-  const pay = async (kind, observe = true) => {
-    await buyer
+  await buyer.evaluate(() => sessionStorage.setItem("checkout-buyer", "{corrupt"));
+  await buyer.reload();
+  await buyer.getByRole("button", { name: "Continue to checkout" }).click();
+  await buyer.getByRole("button", { name: "Cancel checkout" }).click();
+  await buyer.getByRole("button", { name: "Continue to checkout" }).waitFor();
+  assert.equal(await buyer.getByRole("button", { name: "Wallet", exact: true }).isEnabled(), true);
+  const pay = async (kind, observe = true, customer = buyer) => {
+    await customer
       .getByRole("button", {
         name: kind === "cake" ? "Bakery" : "Wallet",
         exact: true,
       })
       .click();
-    await buyer.getByRole("checkbox").setChecked(observe);
-    await buyer.getByRole("button", { name: "Continue to checkout" }).click();
-    const button = buyer.locator("button[data-ref]");
+    await customer.getByRole("checkbox").setChecked(observe);
+    await customer.getByRole("button", { name: "Continue to checkout" }).click();
+    const button = customer.locator("button[data-ref]");
     await button.waitFor();
     const ref = await button.getAttribute("data-ref");
     await button.click();
-    await buyer.getByText("Payment confirmed", { exact: true }).waitFor();
+    await customer.getByRole("heading", { name: "Demo payment app" }).waitFor();
+    assert.equal((await state(analyst, "analyst")).cases.some((entry) => entry.id === ref), false);
+    await customer.getByRole("button", { name: "Confirm demo payment" }).click();
+    await customer.getByText("Payment confirmed", { exact: true }).waitFor();
     return ref;
   };
   const before = await state(buyer, "customer"),
+    secondBefore = await state(second, "customer"),
     cake = await pay("cake");
   const order = (await state(buyer, "customer")).orders.find(
     (o) => o.ref === cake,
@@ -110,19 +120,47 @@ try {
   const saved = (await state(analyst, "analyst")).cases.find(
     (c) => c.id === cake,
   );
-  const wallet = await pay("topup");
+  const wallet = await pay("topup", true, second);
+  const graph = analyst.getByRole("region", { name: "Live payment graph" });
+  await graph.getByRole("button", { name: /User A.*Cake sale supported/ }).waitFor();
+  await graph.getByRole("button", { name: /User B.*Purpose mismatch/ }).waitFor();
+  await graph.getByLabel("Payer").selectOption("User B");
+  assert.equal(await graph.getByRole("button", { name: /User A/ }).count(), 0);
+  await analyst.getByRole("button", { name: "Demo customer · User B" }).waitFor();
+  if (process.env.MERCHANTLENS_WHATSAPP !== "live") {
+    const alert = analyst.locator("aside .record-section").filter({ hasText: "Admin WhatsApp alert" });
+    await alert.getByRole("heading", { name: "Preview · live sending disabled" }).waitFor();
+    await alert.getByText("View critical report", { exact: true }).click();
+    await alert.getByText(wallet, { exact: true }).waitFor();
+  }
+  await graph.getByLabel("Payer").selectOption("");
   await select(wallet, "Purpose mismatch");
+  const space = analyst.getByRole("group", { name: "3D payment evidence graph" });
+  await space.getByRole("button", { name: "Demo customer · User B" }).waitFor();
+  await space.locator("canvas").waitFor();
+  const nodeLabel = "Confirmed payment · ₹500";
+  const paymentNode = space.getByRole("button", { name: nodeLabel });
+  await paymentNode.waitFor();
+  const perspectivePosition = await paymentNode.evaluate((node) => node.style.transform);
+  await space.getByRole("button", { name: "Front view", exact: true }).click();
+  await analyst.waitForFunction(({ nodeLabel, perspectivePosition }) =>
+    [...document.querySelectorAll(".webgl-graph .graph-node-control")].some((node) =>
+      node.getAttribute("aria-label") === nodeLabel && node.style.transform !== perspectivePosition
+    ), { nodeLabel, perspectivePosition });
+  await space.getByRole("button", { name: "Perspective", exact: true }).click();
+  await space.getByRole("button", { name: "Ledger outcome · Wallet credited" }).click();
+  await analyst.locator("aside h3").filter({ hasText: "Wallet credited" }).waitFor();
   await Promise.all(
     Array.from({ length: 5 }, async () =>
       assert.equal(
-        (await post(buyer, "customer", "confirm", { ref: wallet })).status(),
+        (await post(second, "customer", "confirm", { ref: wallet })).status(),
         200,
       ),
     ),
   );
   assert.equal(
-    (await state(buyer, "customer")).balance,
-    before.balance + 50000,
+    (await state(second, "customer")).balance,
+    secondBefore.balance + 50000,
   );
   const missing = await pay("cake", false);
   await select(missing, "Purpose unverified");
@@ -187,7 +225,7 @@ try {
     409,
   );
   const final = await state(buyer, "customer");
-  assert.equal(final.balance, before.balance + 100000);
+  assert.equal(final.balance, before.balance + 50000);
   await buyer.reload();
   await buyer.getByRole("heading", { name: "Order history" }).waitFor();
   await stop(server);
@@ -222,6 +260,95 @@ try {
         path: ".demo-tools/product-" + role + "-" + width + ".png",
         fullPage: true,
       });
+    }
+  }
+  if (process.env.PRODUCT_DEMO_HOST) {
+    await login(second, "customer", "second-buyer");
+    await analyst.getByText("Customer sign-in QR codes", { exact: true }).click();
+    const lanes = [
+      { name: /User A · Cake checkout/, user: "buyer", kind: "cake", tab: "Bakery", desktop: buyer },
+      { name: /User B · Betting wallet demo/, user: "second-buyer", kind: "topup", tab: "Wallet", desktop: second },
+    ];
+    for (const lane of lanes) {
+      const qr = analyst.getByRole("link", { name: lane.name });
+      assert.match(await qr.locator("img").getAttribute("src"), /^data:image\/png;base64,/);
+      await lane.desktop.getByRole("button", { name: lane.tab, exact: true }).click();
+      const shareEvidence = lane.kind !== "cake";
+      await lane.desktop.getByRole("checkbox", { name: "Share checkout click with the analyst" }).setChecked(shareEvidence);
+      if (lane.kind === "cake") await lane.desktop.getByRole("button", { name: "Continue to checkout" }).click();
+      await lane.desktop.getByRole("button", { name: "Show payment QR" }).click();
+      const resumeQr = lane.desktop.getByRole("link", { name: "Scan to pay on your phone" });
+      const url = await resumeQr.getAttribute("href");
+      assert.equal(new URL(url).pathname, "/phone");
+      assert.ok(new URL(url).hash);
+      const ref = await lane.desktop.locator("button[data-ref]").getAttribute("data-ref");
+      assert.match(await resumeQr.locator("img").getAttribute("src"), /^data:image\/png;base64,/);
+      const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+      await phone.goto(url);
+      await phone.getByRole("heading", { name: "Phone checkout" }).waitFor();
+      assert.equal(await phone.getByRole("button", { name: "Sign in" }).count(), 0);
+      assert.equal(await phone.getByRole("checkbox").isChecked(), shareEvidence);
+      await phone.locator(`button[data-ref="${ref}"]`).click();
+      await phone.getByRole("heading", { name: "Payment confirmed" }).waitFor();
+      await analyst.locator(`[data-case-id="${ref}"]`).waitFor();
+      const matchingCases = (await state(analyst, "analyst")).cases.filter((c) => c.id === ref);
+      assert.equal(matchingCases.length, 1);
+      assert.equal(matchingCases[0].nodes.some((node) => node.key === lane.kind), shareEvidence);
+      assert.equal(matchingCases[0].payer, lane.user === "buyer" ? "User A" : "User B");
+      await lane.desktop.getByRole("button", { name: "Continue to checkout" }).waitFor();
+      await phone.reload();
+      await phone.getByRole("heading", { name: "Payment confirmed" }).waitFor();
+      assert.equal((await phone.request.get(new URL("/analyst", url).href)).status(), 404);
+      assert.equal((await phone.request.get(new URL("/api/app/analyst/events", url).href)).status(), 404);
+      await phone.close();
+    }
+    console.log("Storefront QR codes opened the same checkout without sign-in, preserved evidence sharing, and reopened paid checkouts.");
+    if ((await state(analyst, "analyst")).analystDemoQr) {
+      assert.equal((await post(buyer, "customer", "demo-payment-qr", { kind: "cake" })).status(), 404);
+      await analyst.getByText("Demo payment QR codes", { exact: true }).click();
+      await graph.getByLabel("Payer").selectOption("User A");
+      await analyst.getByLabel("Filter cases").selectOption("Purpose unverified");
+      await graph.getByRole("button", { name: "Follow latest" }).click();
+      assert.equal(await graph.getByLabel("Payer").inputValue(), "");
+      assert.equal(await analyst.getByLabel("Filter cases").inputValue(), "All cases");
+      for (const demo of [
+        { action: "Generate cake QR", title: "User A · Cake", status: "Cake sale supported" },
+        { action: "Generate wallet QR", title: "User B · Wallet", status: "Purpose mismatch" },
+      ]) {
+        await analyst.getByRole("button", { name: demo.action }).click();
+        const link = analyst.getByRole("link", { name: "Open " + demo.title + " payment" });
+        await link.locator("img").waitFor();
+        const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+        await phone.goto(await link.getAttribute("href"));
+        const confirm = phone.locator("button[data-ref]");
+        const ref = await confirm.getAttribute("data-ref");
+        assert.equal((await state(analyst, "analyst")).cases.some((entry) => entry.id === ref), false);
+        assert.equal(await phone.getByRole("button", { name: "Sign in" }).count(), 0);
+        await confirm.click();
+        await phone.getByRole("heading", { name: "Payment confirmed" }).waitFor();
+        await analyst.locator(`aside[data-case="${ref}"]`).waitFor();
+        if (demo.action === "Generate cake QR") {
+          const order = (await state(ops, "merchant")).orders.find((record) => record.ref === ref);
+          const row = ops.locator("article").filter({ hasText: order.payment });
+          for (const label of ["Accept order", "Start preparing", "Ready for dispatch", "Mark delivered"])
+            await row.getByRole("button", { name: label }).click();
+        }
+        const finding = analyst.locator(`aside[data-case="${ref}"] .finding h2`);
+        await finding.filter({ hasText: demo.status }).waitFor();
+        await space.getByRole("button", {
+          name: demo.action === "Generate cake QR" ? "Merchant record · Cake delivered" : "Ledger outcome · Wallet credited",
+        }).waitFor();
+        const report = analyst.locator("aside .record-section").filter({ hasText: "Admin WhatsApp alert" });
+        if (demo.action === "Generate cake QR") {
+          assert.equal(await report.count(), 0);
+        } else if (process.env.MERCHANTLENS_WHATSAPP !== "live") {
+          await report.getByRole("heading", { name: "Preview · live sending disabled" }).waitFor();
+          await report.getByText("View critical report", { exact: true }).click();
+          await report.getByText(ref, { exact: true }).waitFor();
+        }
+        await phone.close();
+      }
+      console.log("Analyst QR rehearsal passed: two phone checkouts, live 3D evidence, cake fulfilment, and a WhatsApp preview only for the mismatch.");
     }
   }
   console.log(

@@ -1,6 +1,6 @@
-import React, { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
-import { Line } from "@react-three/drei";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Line, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 
 const up = new THREE.Vector3(0, 1, 0);
@@ -142,14 +142,20 @@ const modelFor = {
   supplier: Parcels,
   receiver: Vault,
   endpoint: Account,
+  checkout: Checkout,
+  merchant: Storefront,
+  evidence: Evidence,
+  parcels: Parcels,
+  vault: Vault,
+  account: Account,
 };
 
 export function EvidenceNode({ node, color, selected, dim, playing, onSelect }) {
   const model = useRef(null);
   const elapsed = useRef(0);
-  const Model = modelFor[node.id];
-  const size = node.id === "bakery" ? 1.15 : 1;
-  const pedestal = node.id === "bakery" ? 0.94 : 0.64;
+  const Model = modelFor[node.id] || modelFor[node.kind] || Evidence;
+  const size = node.kind === "merchant" ? 1.15 : 1;
+  const pedestal = node.kind === "merchant" ? 0.94 : 0.64;
   const phase = node.pos[0] * 0.52;
   const tint = dim ? new THREE.Color(color).lerp(new THREE.Color("#4b4e51"), 0.78) : color;
   useFrame((_, delta) => {
@@ -231,4 +237,134 @@ export function FlowEdge({ from, to, color, playing, dim, highlighted }) {
       ))}
     </>
   );
+}
+
+function ProjectGraphLabels({ nodes, labels }) {
+  const point = useRef(new THREE.Vector3());
+  useFrame(({ camera, size }) => {
+    camera.updateMatrixWorld();
+    for (const node of nodes) {
+      const label = labels.current[node.id];
+      if (!label) continue;
+      point.current.set(...node.pos).project(camera);
+      const { x: px, y: py, z: depth } = point.current;
+      const screenX = ((px + 1) * size.width) / 2;
+      const screenY = ((1 - py) * size.height) / 2;
+      label.style.visibility = depth >= -1 && depth <= 1 ? "visible" : "hidden";
+      label.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -50%)`;
+    }
+  });
+  return null;
+}
+
+export function EvidenceGraph({
+  nodes: visible,
+  edges,
+  colors,
+  selected,
+  onSelect,
+  playing,
+  focus,
+  filter = "all",
+  label,
+  compact = false,
+}) {
+  const [cameraMode, setCameraMode] = useState("perspective");
+  const [autoOrbit, setAutoOrbit] = useState(false);
+  const controls = useRef(null);
+  const labels = useRef({});
+  const visibleById = Object.fromEntries(visible.map((node) => [node.id, node]));
+  return (
+    <div className="webgl-graph" role={label ? "group" : undefined} aria-label={label}>
+      <div className="camera-presets" aria-label="Graph camera controls" role="group">
+        <button onClick={() => setCameraMode("perspective")} aria-pressed={cameraMode === "perspective"}>
+          Perspective
+        </button>
+        <button onClick={() => setCameraMode("front")} aria-pressed={cameraMode === "front"}>
+          Front view
+        </button>
+        <button onClick={() => setAutoOrbit((enabled) => !enabled)} aria-pressed={autoOrbit}>
+          {autoOrbit ? "Stop orbit" : "Auto orbit"}
+        </button>
+      </div>
+      <div className="graph-labels">
+        {visible.map((node) => (
+          <button
+            key={node.id}
+            ref={(element) => { labels.current[node.id] = element; }}
+            aria-label={node.label || "Inspect " + node.name}
+            aria-pressed={selected === node.id}
+            className={node.kind === "merchant" ? "graph-node-control merchant" : "graph-node-control"}
+            style={{ "--node-color": colors[node.type] }}
+            onClick={() => onSelect(node.id)}
+          >
+            {(selected === node.id || node.showLabel) && (
+              <span className="spatial-label" aria-hidden="true">{node.name}</span>
+            )}
+          </button>
+        ))}
+      </div>
+      <Canvas camera={{ position: [1.3, 3.1, 15], fov: 41 }} dpr={[1, 1.6]}>
+        <color attach="background" args={["#161915"]} />
+        <fog attach="fog" args={["#161915", 21, 43]} />
+        <hemisphereLight args={["#fff0d9", "#45485e", 1.38]} />
+        <directionalLight position={[-5, 7, 5]} intensity={2.4} color="#fff4dc" />
+        <directionalLight position={[5, 3, -5]} intensity={2.1} color="#b1ceff" />
+        <gridHelper args={[52, 52, "#706550", "#423e34"]} position={[0, -3.82, 0]} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.84, 0]}>
+          <planeGeometry args={[52, 52]} />
+          <meshStandardMaterial color="#22231e" roughness={0.94} />
+        </mesh>
+        <GraphCamera mode={cameraMode} focus={focus} controls={controls} compact={compact} />
+        <ProjectGraphLabels nodes={visible} labels={labels} />
+        {edges.map(({ from, to, type, highlighted }) => (
+            <FlowEdge
+              key={`${from}-${to}`}
+              from={visibleById[from].pos}
+              to={visibleById[to].pos}
+              color={colors[type]}
+              playing={playing}
+              dim={filter !== "all" && type !== filter}
+              highlighted={highlighted ?? (selected === from || selected === to)}
+            />
+        ))}
+        {visible.map((node) => (
+          <EvidenceNode
+            key={node.id}
+            node={node}
+            color={colors[node.type]}
+            selected={selected === node.id}
+            onSelect={onSelect}
+            playing={playing}
+            dim={selected !== node.id && filter !== "all" && node.type !== filter}
+          />
+        ))}
+        <OrbitControls
+          ref={controls}
+          autoRotate={autoOrbit && playing}
+          autoRotateSpeed={0.45}
+          minDistance={6}
+          maxDistance={42}
+          maxPolarAngle={Math.PI * 0.79}
+          enableDamping
+          dampingFactor={0.07}
+        />
+      </Canvas>
+    </div>
+  );
+}
+function GraphCamera({ mode, focus, controls, compact }) {
+  const { camera, size } = useThree();
+  const aspect = size.width / Math.max(size.height, 1);
+  useEffect(() => {
+    if (!controls.current || aspect <= 0) return;
+    const distance = compact
+      ? Math.max(11, 14 / aspect)
+      : THREE.MathUtils.clamp(19.5 / aspect, 13, 34);
+    controls.current.target.set(0.15, -0.3, 0);
+    const front = mode === "front";
+    camera.position.set(front ? 0.15 : 1.25, front ? -0.3 : 3, distance);
+    controls.current.update();
+  }, [aspect, camera, compact, controls, focus, mode]);
+  return null;
 }

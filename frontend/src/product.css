@@ -365,3 +365,69 @@
     max-height: 250px;
   }
 }
+.payment-network {
+  margin: 0 0 20px;
+  border: 1px solid var(--line, #e0d9c5);
+  border-radius: 16px;
+  padding: 16px;
+}
+.payment-network-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.payment-network-header h2 { margin: 0 auto 0 0; }
+.payment-network-header label { display: flex; align-items: center; gap: 8px; }
+.payment-paths { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
+.payment-paths .payment-path {
+  display: grid;
+  grid-template-columns: minmax(65px, 1fr) auto minmax(90px, 1fr) auto minmax(98px, 1.6fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+}
+.payment-path[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink, #183b37); }
+.payment-path b, .payment-path small { display: block; overflow-wrap: anywhere; }
+.payment-path small { margin-top: 3px; }
+.payment-path svg { width: 15px; height: 15px; }
+.payment-path-critical { color: #a42d22; }
+@media (max-width: 500px) {
+  .payment-network { padding: 10px; }
+  .payment-paths .payment-path { gap: 4px; padding-inline: 7px; }
+  .payment-path svg { width: 10px; height: 10px; }
+}
+.payment-app {
+  max-width: 410px;
+  margin: 30px auto;
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--paper, #fffaf0);
+  border: 1px solid var(--line, #e0d9c5);
+  display: grid;
+  gap: 12px;
+}
+.payment-app-heading { display: flex; align-items: center; gap: 8px; }
+.payment-app h1, .payment-app p { margin: 0; }
+.payment-app dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+.payment-app dd { margin: 0; font-weight: 650; }
+.payment-app .payment-app-amount { font-size: 1.75rem; }
+.phone-checkouts { margin: 0 0 16px; }
+.phone-checkouts summary { width: fit-content; font-weight: 650; }
+.phone-checkout-codes { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px; }
+.demo-payment-codes p { margin: 10px 0; }
+.demo-payment-lane { display: grid; justify-items: start; align-content: start; gap: 8px; }
+.checkout-qr-link { display: grid; justify-items: center; gap: 6px; text-align: center; }
+.checkout-qr-link img { max-width: 100%; height: auto; display: block; }
+.customer-checkout-qr { display: grid; justify-items: center; gap: 6px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.payu-contact { display: grid; gap: 10px; }
+.payu-contact label { display: grid; gap: 4px; }
+.login .login-help { margin: 0; }
+.login .login-error { color: #942d25; margin: 0; }
