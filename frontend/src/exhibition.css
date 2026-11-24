@@ -318,6 +318,65 @@ body {
   color: var(--ink);
   border: 0;
 }
+.map-header { flex-wrap: wrap; gap: 7px; }
+.map-mode { display: inline-flex; gap: 2px; margin-left: auto; }
+.map-mode button { background: #323027; color: var(--ml-on-dark); }
+.map-mode button[aria-pressed="true"] { background: var(--ml-orange); color: var(--ink); }
+.map .webgl-graph {
+  height: clamp(340px, 48vh, 480px);
+  position: relative;
+  min-width: 0;
+}
+.map .webgl-graph canvas { cursor: grab; }
+.map .webgl-graph canvas:active { cursor: grabbing; }
+.map .camera-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  position: absolute;
+  z-index: 7;
+  top: 8px;
+  right: 8px;
+  max-width: calc(100% - 16px);
+}
+.map .camera-presets button {
+  color: var(--ml-on-dark);
+  background: #323027;
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid #777063;
+}
+.map .camera-presets button[aria-pressed="true"] { background: var(--ml-orange); color: var(--ink); }
+.map .graph-labels { position: absolute; inset: 0; z-index: 5; overflow: hidden; pointer-events: none; }
+.map .graph-node-control {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 29px;
+  height: 29px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  visibility: hidden;
+  pointer-events: auto;
+}
+.map .graph-node-control[aria-pressed="true"], .map .graph-node-control:focus-visible { z-index: 1; }
+.map .spatial-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 6px;
+  border: 1px solid var(--node-color);
+  background: #201d17;
+  color: var(--ml-on-dark);
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.map-status { margin: 0; padding: 10px 14px; }
+.map-foot { flex-wrap: wrap; gap: 7px; }
 .map-scroll {
   overflow: auto;
 }

@@ -18,7 +18,7 @@ await new Promise((ok, fail) => {
 });
 let browser;
 try {
-  browser = await chromium.launch({ channel: "msedge", headless: true });
+  browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || "msedge", headless: true });
   const ctx = await browser.newContext();
   await ctx.route("**/*", (route) =>
     new URL(route.request().url()).hostname === "127.0.0.1"
@@ -145,6 +145,8 @@ try {
     "delivery for order",
   );
   await board.getByRole("button", { name: "Graph", exact: true }).click();
+  await board.getByRole("group", { name: "3D payment evidence graph" }).waitFor();
+  await board.getByRole("button", { name: "2D", exact: true }).click();
   await board
     .getByRole("button", { name: "Merchant claim · Chocolate cake" })
     .click();

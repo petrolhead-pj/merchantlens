@@ -160,7 +160,7 @@ function Lab() {
               <button
                 disabled={busy}
                 onClick={() =>
-                  send(run)
+                  api("/provider", run)
                     .then(() => setMessage("Duplicate acknowledged"))
                     .catch((e) => setMessage(e.message))
                 }
@@ -171,7 +171,7 @@ function Lab() {
                 <button
                   disabled={busy}
                   onClick={() =>
-                    send({
+                    api("/evidence", {
                       ...run,
                       id: crypto.randomUUID(),
                       kind: "delivery",
@@ -253,7 +253,7 @@ export default function Exhibition() {
         <strong>MerchantLens</strong>
         <span className="mode-tag">{mode} · Simulated funds</span>
         <a
-          href={lab ? (endpoint === "/api/cases" ? "?offline" : "?") : (endpoint === "/api/cases" ? "?lab&offline" : "?lab")}
+          href={lab ? (endpoint === "/api/cases" ? "?offline" : "?exhibition") : (endpoint === "/api/cases" ? "?lab&offline" : "?lab")}
           target="_blank"
           rel="noreferrer"
         >

@@ -18,6 +18,14 @@ import {
   relationName,
 } from "./EvidenceMap.jsx";
 const time = (t) => new Date(t).toLocaleTimeString();
+const notificationLabels = {
+  preview: "Preview · live sending disabled",
+  queued: "Queued for WhatsApp",
+  sending: "Submitting to WhatsApp",
+  submitted: "Accepted by WhatsApp",
+  rejected: "Rejected by WhatsApp · check sender setup",
+  unknown: "Delivery unconfirmed · check the admin phone",
+};
 export function Investigation({ c, api }) {
   const [selected, select] = useState("payment"),
     [explaining, setExplain] = useState(false),
@@ -151,6 +159,21 @@ export function Investigation({ c, api }) {
             </p>
           )}
         </div>
+        {c.notification && (
+          <div className="record-section" aria-live="polite">
+            <small>Admin WhatsApp alert</small>
+            <h3>{notificationLabels[c.notification.status]}</h3>
+            <details>
+              <summary>View critical report</summary>
+              <p>{c.notification.report.reason}</p>
+              <dl>
+                <dt>Case ID</dt><dd>{c.notification.report.caseId}</dd>
+                <dt>Payment ID</dt><dd>{c.notification.report.paymentId}</dd>
+                <dt>Evidence ID</dt><dd>{c.notification.report.evidenceId}</dd>
+              </dl>
+            </details>
+          </div>
+        )}
         <div className="record-section">
           <small>
             Selected {selected.startsWith("edge/") ? "relationship" : "record"}
@@ -170,6 +193,10 @@ export function Investigation({ c, api }) {
                 "Record IDs": ids?.join(" / "),
                 "Checkout reference": c.id,
                 "Payment ID": record.event.payment,
+                ...(c.provider ? {
+                  "PayU transaction ID": c.provider.transactionId,
+                  "PayU payment ID": c.provider.paymentId,
+                } : {}),
                 "Event time": new Date(record.event.time).toLocaleString(),
                 "Received time": new Date(record.received).toLocaleString(),
                 ...(record.event.label

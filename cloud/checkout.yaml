@@ -1,0 +1,367 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: MerchantLens checkout on EC2 with public CloudFront HTTPS and private staff access.
+
+Parameters:
+  ReleaseBucket:
+    Type: String
+    Description: Private S3 bucket in this account and region containing the application release.
+    AllowedPattern: '[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]'
+  ReleaseKey:
+    Type: String
+    Description: S3 key for the packaged MerchantLens release.
+    AllowedPattern: '[A-Za-z0-9][A-Za-z0-9._/-]{0,499}'
+  ReleaseSha256:
+    Type: String
+    Description: Lowercase SHA-256 of the release archive.
+    AllowedPattern: '[0-9a-f]{64}'
+  CloudFrontPrefixList:
+    Type: String
+    Description: Regional ID of com.amazonaws.global.cloudfront.origin-facing.
+    AllowedPattern: 'pl-[0-9a-f]+'
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues: [t3.micro, t3.small]
+  LatestAmi:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  EnableNeptune:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['false', 'true']
+    Description: Provision a private Neptune Database cluster. Set false to omit it.
+  NeptuneInstanceClass:
+    Type: String
+    Default: db.t4g.medium
+    AllowedValues: [db.t4g.medium, db.t3.medium]
+
+Conditions:
+  WithNeptune: !Equals [!Ref EnableNeptune, 'true']
+
+Resources:
+  Network:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.70.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref Network
+
+  AppSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.70.1.0/24
+      VpcId: !Ref Network
+
+  AppRoutes:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Network
+
+  AppRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref AppRoutes
+      SubnetId: !Ref AppSubnet
+
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Network
+      VpcEndpointType: Gateway
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      RouteTableIds: [!Ref AppRoutes]
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: CloudFront may reach the checkout proxy only
+      VpcId: !Ref Network
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourcePrefixListId: !Ref CloudFrontPrefixList
+
+  ManagementEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow the checkout host to reach Systems Manager over HTTPS
+      VpcId: !Ref Network
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref AppSecurityGroup
+
+  SystemsManagerEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Network
+      VpcEndpointType: Interface
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!Ref ManagementEndpointSecurityGroup]
+      SubnetIds: [!Ref AppSubnet]
+
+  SessionManagerEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Network
+      VpcEndpointType: Interface
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!Ref ManagementEndpointSecurityGroup]
+      SubnetIds: [!Ref AppSubnet]
+
+  AppRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: ReadCheckoutReleaseAndOrigin
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::${ReleaseBucket}/${ReleaseKey}
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/checkout-origin
+
+  AppProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref AppRole]
+
+  AppInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: [AppRouteAssociation, S3Endpoint, SystemsManagerEndpoint, SessionManagerEndpoint]
+    Properties:
+      ImageId: !Ref LatestAmi
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref AppProfile
+      CreditSpecification:
+        CPUCredits: standard
+      MetadataOptions:
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            Encrypted: true
+            VolumeSize: 8
+            VolumeType: gp3
+            DeleteOnTermination: true
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: false
+          DeviceIndex: '0'
+          GroupSet: [!Ref AppSecurityGroup]
+          SubnetId: !Ref AppSubnet
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-checkout
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y nodejs22 nginx
+          systemctl enable --now amazon-ssm-agent
+          useradd --system --home-dir /var/lib/merchantlens --shell /sbin/nologin merchantlens
+          install -d -m 0755 /opt/merchantlens
+          install -d -o merchantlens -g merchantlens -m 0700 /var/lib/merchantlens
+          aws s3 cp 's3://${ReleaseBucket}/${ReleaseKey}' /tmp/merchantlens.tar.gz --region '${AWS::Region}' --only-show-errors
+          echo '${ReleaseSha256}  /tmp/merchantlens.tar.gz' | sha256sum --check --status
+          tar -xzf /tmp/merchantlens.tar.gz -C /opt/merchantlens --no-same-owner
+          rm /tmp/merchantlens.tar.gz
+          cd /opt/merchantlens
+          runuser -u merchantlens -- env MERCHANTLENS_DATA=/var/lib/merchantlens node-22 scripts/product.mjs --setup
+
+          cat > /etc/nginx/nginx.conf <<'NGINX'
+          user nginx;
+          worker_processes auto;
+          events {}
+          http {
+              server {
+                  listen 80;
+                  server_name _;
+                  client_max_body_size 16k;
+                  location / {
+                      proxy_http_version 1.1;
+                      proxy_set_header Host $http_host;
+                      proxy_pass http://127.0.0.1:4185;
+                  }
+              }
+          }
+          NGINX
+          nginx -t
+          systemctl enable --now nginx
+
+          cat > /usr/local/bin/merchantlens-start <<'START'
+          #!/bin/bash
+          set -euo pipefail
+          export PRODUCT_PUBLIC_ORIGIN="$(aws ssm get-parameter --region '${AWS::Region}' --name '/${AWS::StackName}/checkout-origin' --query Parameter.Value --output text --no-cli-pager)"
+          exec /usr/bin/node-22 scripts/product.mjs
+          START
+          chmod 0755 /usr/local/bin/merchantlens-start
+          cat > /etc/systemd/system/merchantlens.service <<'SERVICE'
+          [Unit]
+          Description=MerchantLens checkout and workbench
+          Wants=network-online.target
+          After=network-online.target
+          StartLimitIntervalSec=0
+
+          [Service]
+          User=merchantlens
+          WorkingDirectory=/opt/merchantlens
+          Environment=MERCHANTLENS_DATA=/var/lib/merchantlens
+          Environment=PRODUCT_PORT=4180
+          Environment=PRODUCT_PUBLIC_PORT=4185
+          Environment=MERCHANTLENS_WHATSAPP=preview
+          ExecStart=/usr/local/bin/merchantlens-start
+          Restart=on-failure
+          RestartSec=20
+          UMask=0077
+          NoNewPrivileges=true
+          PrivateTmp=true
+
+          [Install]
+          WantedBy=multi-user.target
+          SERVICE
+          systemctl daemon-reload
+          systemctl enable --now --no-block merchantlens
+
+  CheckoutOrigin:
+    Type: AWS::CloudFront::VpcOrigin
+    DependsOn: GatewayAttachment
+    Properties:
+      VpcOriginEndpointConfig:
+        Name: !Sub ${AWS::StackName}-checkout
+        Arn: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${AppInstance}
+        HTTPPort: 80
+        OriginProtocolPolicy: http-only
+
+  CheckoutDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub ${AWS::StackName} customer checkout
+        Enabled: true
+        HttpVersion: http2
+        IPV6Enabled: true
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: checkout
+            DomainName: !GetAtt AppInstance.PrivateDnsName
+            VpcOriginConfig:
+              VpcOriginId: !GetAtt CheckoutOrigin.Id
+        DefaultCacheBehavior:
+          TargetOriginId: checkout
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+
+  PublicOriginParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AWS::StackName}/checkout-origin
+      Type: String
+      Value: !Sub https://${CheckoutDistribution.DomainName}
+
+  NeptuneSubnetA:
+    Type: AWS::EC2::Subnet
+    Condition: WithNeptune
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.70.10.0/24
+      VpcId: !Ref Network
+
+  NeptuneSubnetB:
+    Type: AWS::EC2::Subnet
+    Condition: WithNeptune
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.70.11.0/24
+      VpcId: !Ref Network
+
+  NeptuneSubnets:
+    Type: AWS::Neptune::DBSubnetGroup
+    Condition: WithNeptune
+    Properties:
+      DBSubnetGroupDescription: Private Neptune Database subnets
+      SubnetIds: [!Ref NeptuneSubnetA, !Ref NeptuneSubnetB]
+
+  NeptuneSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: WithNeptune
+    Properties:
+      GroupDescription: Allow Neptune connections from the application host only
+      VpcId: !Ref Network
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8182
+          ToPort: 8182
+          SourceSecurityGroupId: !Ref AppSecurityGroup
+
+  NeptuneCluster:
+    Type: AWS::Neptune::DBCluster
+    Condition: WithNeptune
+    DependsOn: CheckoutDistribution
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BackupRetentionPeriod: 1
+      DBSubnetGroupName: !Ref NeptuneSubnets
+      IamAuthEnabled: true
+      StorageEncrypted: true
+      VpcSecurityGroupIds: [!Ref NeptuneSecurityGroup]
+
+  NeptuneWriter:
+    Type: AWS::Neptune::DBInstance
+    Condition: WithNeptune
+    Properties:
+      DBClusterIdentifier: !Ref NeptuneCluster
+      DBInstanceClass: !Ref NeptuneInstanceClass
+
+Outputs:
+  PublicCheckout:
+    Description: Public HTTPS customer checkout origin
+    Value: !Sub https://${CheckoutDistribution.DomainName}
+  CheckoutInstanceId:
+    Description: EC2 instance ID for the staff Session Manager tunnel
+    Value: !Ref AppInstance
+  StaffPort:
+    Description: Forward this instance port to localhost
+    Value: '4180'
+  NeptuneEndpoint:
+    Condition: WithNeptune
+    Description: Private IAM-authenticated Neptune Database endpoint
+    Value: !Sub https://${NeptuneCluster.Endpoint}:8182
+  NeptuneClusterResourceId:
+    Condition: WithNeptune
+    Description: Cluster resource ID for Neptune data-plane IAM policies
+    Value: !GetAtt NeptuneCluster.ClusterResourceId
