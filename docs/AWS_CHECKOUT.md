@@ -58,3 +58,9 @@ Inspect the change set in the CloudFormation console before executing it. The ba
 5. If enabled, use the **NeptuneEndpoint** from inside the VPC with an IAM principal authorized for Neptune data-plane calls. The checkout role has no Neptune data access.
 
 The host bootstraps the release once. Use a fresh stack for a new demo release or back up the app data before replacing the EC2 host. The root disk and the optional Neptune data are removed when their resources are deleted. The external release bucket has its own lifecycle. This stack's isolated subnet has no internet egress. PayU and live WhatsApp need an explicitly configured egress path and service credentials.
+
+## HTTPS without CloudFront
+
+If an existing checkout EC2 host survived a CloudFront failure, [checkout-https.yaml](../cloud/checkout-https.yaml) attaches a public API Gateway HTTP API to its private Nginx listener through a VPC link and Cloud Map. Supply the existing host's VPC, subnet, security group, and private IPv4 address. Use a separate stack such as `merchantlens-checkout-https`. This template assumes that the original host role can read `/merchantlens-checkout/checkout-origin` and that the parameter is available for the new stack to create.
+
+After the stack publishes `PublicCheckout`, connect to the instance through Systems Manager. In `/etc/nginx/nginx.conf`, set `proxy_set_header Host` to the hostname from that output. Run `sudo nginx -t && sudo systemctl reload nginx`, then `sudo systemctl restart merchantlens` to pick up the new origin. Check that HTTPS serves `/phone` and returns 404 for the staff pages and state APIs. Staff still use the Systems Manager tunnel to port 4180. This stack reuses the existing SQLite store.

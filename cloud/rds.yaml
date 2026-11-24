@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private PostgreSQL database for MerchantLens.
+
+Parameters:
+  CheckoutVpc:
+    Type: AWS::EC2::VPC::Id
+  CheckoutSubnet:
+    Type: AWS::EC2::Subnet::Id
+  CheckoutSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+  SecondaryAvailabilityZone:
+    Type: AWS::EC2::AvailabilityZone::Name
+  SecondarySubnetCidr:
+    Type: String
+    Description: Unused IPv4 CIDR in the checkout VPC for the second RDS subnet.
+
+Resources:
+  SecondarySubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CheckoutVpc
+      AvailabilityZone: !Ref SecondaryAvailabilityZone
+      CidrBlock: !Ref SecondarySubnetCidr
+      MapPublicIpOnLaunch: false
+  DatabaseSubnets:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private MerchantLens database subnets
+      SubnetIds: [!Ref CheckoutSubnet, !Ref SecondarySubnet]
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: PostgreSQL access from the MerchantLens checkout host
+      VpcId: !Ref CheckoutVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref CheckoutSecurityGroup
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Ref AWS::StackName
+      DBInstanceClass: db.t4g.micro
+      Engine: postgres
+      EngineVersion: '17'
+      DBName: merchantlens
+      MasterUsername: merchantlens_admin
+      ManageMasterUserPassword: true
+      AllocatedStorage: '20'
+      StorageType: gp2
+      StorageEncrypted: true
+      BackupRetentionPeriod: 7
+      MultiAZ: false
+      PubliclyAccessible: false
+      DBSubnetGroupName: !Ref DatabaseSubnets
+      VPCSecurityGroups: [!Ref DatabaseSecurityGroup]
+
+Outputs:
+  DatabaseIdentifier:
+    Value: !Ref Database
+  DatabaseEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+  DatabasePort:
+    Value: !GetAtt Database.Endpoint.Port

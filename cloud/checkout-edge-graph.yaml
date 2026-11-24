@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFront checkout distribution and private Neptune database for MerchantLens.
+
+Parameters:
+  Component:
+    Type: String
+    AllowedValues: [edge, graph]
+  CheckoutVpc:
+    Type: AWS::EC2::VPC::Id
+  DatabaseSubnetA:
+    Type: AWS::EC2::Subnet::Id
+  DatabaseSubnetB:
+    Type: AWS::EC2::Subnet::Id
+  CheckoutSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+  CheckoutVpcOriginId:
+    Type: String
+  CheckoutPrivateDnsName:
+    Type: String
+
+Conditions:
+  WithEdge: !Equals [!Ref Component, edge]
+  WithGraph: !Equals [!Ref Component, graph]
+
+Resources:
+  CheckoutDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: WithEdge
+    Properties:
+      DistributionConfig:
+        Comment: MerchantLens customer checkout
+        Enabled: true
+        HttpVersion: http2
+        IPV6Enabled: true
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: checkout
+            DomainName: !Ref CheckoutPrivateDnsName
+            VpcOriginConfig:
+              VpcOriginId: !Ref CheckoutVpcOriginId
+        DefaultCacheBehavior:
+          TargetOriginId: checkout
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+
+  GraphSubnets:
+    Type: AWS::Neptune::DBSubnetGroup
+    Condition: WithGraph
+    Properties:
+      DBSubnetGroupDescription: Private MerchantLens graph database subnets
+      SubnetIds: [!Ref DatabaseSubnetA, !Ref DatabaseSubnetB]
+  GraphSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: WithGraph
+    Properties:
+      GroupDescription: Neptune access from the MerchantLens checkout host
+      VpcId: !Ref CheckoutVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8182
+          ToPort: 8182
+          SourceSecurityGroupId: !Ref CheckoutSecurityGroup
+  GraphCluster:
+    Type: AWS::Neptune::DBCluster
+    Condition: WithGraph
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      BackupRetentionPeriod: 1
+      DBSubnetGroupName: !Ref GraphSubnets
+      IamAuthEnabled: true
+      StorageEncrypted: true
+      VpcSecurityGroupIds: [!Ref GraphSecurityGroup]
+  GraphWriter:
+    Type: AWS::Neptune::DBInstance
+    Condition: WithGraph
+    Properties:
+      DBClusterIdentifier: !Ref GraphCluster
+      DBInstanceClass: db.t4g.medium
+
+Outputs:
+  CloudFrontCheckout:
+    Condition: WithEdge
+    Value: !Sub 'https://${CheckoutDistribution.DomainName}'
+  NeptuneEndpoint:
+    Condition: WithGraph
+    Value: !Sub 'https://${GraphCluster.Endpoint}:8182'

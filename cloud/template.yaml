@@ -89,9 +89,30 @@ Resources:
   ReconcileLogs:
     Type: AWS::Logs::LogGroup
     Properties: {LogGroupName: !Sub '/aws/lambda/${Reconciler}', RetentionInDays: 3}
+  AlarmNotifications:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${AWS::StackName}-alerts'
+  AlarmNotificationsPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref AlarmNotifications]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: cloudwatch.amazonaws.com}
+            Action: 'sns:Publish'
+            Resource: !Ref AlarmNotifications
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref AWS::AccountId
+              ArnEquals:
+                'aws:SourceArn': [!GetAtt QueueAgeAlarm.Arn, !GetAtt DeadLetterAlarm.Arn]
   QueueAgeAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
+      AlarmActions: [!Ref AlarmNotifications]
       Namespace: AWS/SQS
       MetricName: ApproximateAgeOfOldestMessage
       Dimensions: [{Name: QueueName, Value: !GetAtt Queue.QueueName}]
@@ -104,6 +125,7 @@ Resources:
   DeadLetterAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
+      AlarmActions: [!Ref AlarmNotifications]
       Namespace: AWS/SQS
       MetricName: ApproximateNumberOfMessagesVisible
       Dimensions: [{Name: QueueName, Value: !GetAtt DeadLetters.QueueName}]
@@ -116,3 +138,6 @@ Resources:
 Outputs:
   Endpoint:
     Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/cases'
+  AlertTopicArn:
+    Description: SNS topic for the exhibition queue alarms
+    Value: !Ref AlarmNotifications

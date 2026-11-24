@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Public HTTPS for the private MerchantLens checkout via API Gateway and Cloud Map.
+
+Parameters:
+  CheckoutVpc:
+    Type: AWS::EC2::VPC::Id
+  CheckoutSubnet:
+    Type: AWS::EC2::Subnet::Id
+  CheckoutSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+  CheckoutPrivateIp:
+    Type: String
+    AllowedPattern: '[0-9.]+'
+
+Resources:
+  LinkSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: API Gateway link to the private checkout proxy
+      VpcId: !Ref CheckoutVpc
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          DestinationSecurityGroupId: !Ref CheckoutSecurityGroup
+  ProxyIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref CheckoutSecurityGroup
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId: !Ref LinkSecurityGroup
+  DiscoveryNamespace:
+    Type: AWS::ServiceDiscovery::HttpNamespace
+    Properties:
+      Name: !Sub '${AWS::StackName}.internal'
+  DiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: checkout
+      NamespaceId: !Ref DiscoveryNamespace
+  DiscoveryInstance:
+    Type: AWS::ServiceDiscovery::Instance
+    Properties:
+      ServiceId: !Ref DiscoveryService
+      InstanceAttributes:
+        AWS_INSTANCE_IPV4: !Ref CheckoutPrivateIp
+        AWS_INSTANCE_PORT: '80'
+  Link:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties:
+      Name: !Ref AWS::StackName
+      SecurityGroupIds: [!Ref LinkSecurityGroup]
+      SubnetIds: [!Ref CheckoutSubnet]
+  CheckoutApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Ref AWS::StackName
+      ProtocolType: HTTP
+  CheckoutIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    DependsOn: [DiscoveryInstance, ProxyIngress]
+    Properties:
+      ApiId: !Ref CheckoutApi
+      IntegrationType: HTTP_PROXY
+      IntegrationMethod: ANY
+      ConnectionType: VPC_LINK
+      ConnectionId: !Ref Link
+      IntegrationUri: !GetAtt DiscoveryService.Arn
+      PayloadFormatVersion: '1.0'
+      RequestParameters:
+        'overwrite:path': '$request.path'
+  CheckoutRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref CheckoutApi
+      RouteKey: '$default'
+      Target: !Sub integrations/${CheckoutIntegration}
+  CheckoutStage:
+    Type: AWS::ApiGatewayV2::Stage
+    DependsOn: CheckoutRoute
+    Properties:
+      ApiId: !Ref CheckoutApi
+      StageName: '$default'
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 40
+        ThrottlingRateLimit: 20
+  PublicOriginParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /merchantlens-checkout/checkout-origin
+      Type: String
+      Value: !GetAtt CheckoutApi.ApiEndpoint
+
+Outputs:
+  PublicCheckout:
+    Value: !GetAtt CheckoutApi.ApiEndpoint
