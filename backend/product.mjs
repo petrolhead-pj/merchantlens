@@ -125,6 +125,7 @@ export function commerce(store, { sendWhatsApp = false } = {}) {
             amount: r.amount ?? price,
             reason: r.case.why,
             evidenceId: evidence.event.id,
+            evidenceKind: evidence.event.kind,
           },
           attempts: 0,
         };

@@ -534,7 +534,7 @@ const next = {
   Preparing: "Ready",
   Ready: "Delivered",
 };
-function Orders({ orders, act, busy }) {
+function Orders({ orders }) {
   return orders.length ? (
     orders.map((o) => (
       <article key={o.id}>
@@ -553,30 +553,103 @@ function Orders({ orders, act, busy }) {
             Order {o.id.slice(0, 8)} · Payment {o.payment}
           </small>
         </div>
-        {act && next[o.stage] && (
-          <button disabled={busy} onClick={() => act(o)}>
-            {
-              {
-                Placed: "Accept order",
-                Accepted: "Start preparing",
-                Preparing:
-                  o.method === "Pickup"
-                    ? "Ready for pickup"
-                    : "Ready for dispatch",
-                Ready:
-                  o.method === "Pickup"
-                    ? "Confirm collection"
-                    : "Mark delivered",
-              }[o.stage]
-            }
-          </button>
-        )}
       </article>
     ))
   ) : (
     <p>No orders yet.</p>
   );
 }
+const orderStages = [...Object.keys(next), "Delivered"];
+const orderFilters = [
+  ["all", "All orders"],
+  ["Placed", "New"],
+  ["kitchen", "In the kitchen"],
+  ["Ready", "Ready"],
+  ["Delivered", "Completed"],
+];
+const orderTime = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
+
+function MerchantOrders({ orders, advance, busy }) {
+  const [filter, setFilter] = useState("all");
+  const groups = Object.groupBy(orders, ({ stage }) =>
+    stage === "Accepted" || stage === "Preparing" ? "kitchen" : stage);
+  const visibleOrders = filter === "all" ? orders : groups[filter] ?? [];
+  const sortedOrders = [...visibleOrders].sort((a, b) =>
+    Number(a.stage === "Delivered") - Number(b.stage === "Delivered") ||
+    (b.events?.at(-1)?.time ?? "").localeCompare(a.events?.at(-1)?.time ?? ""));
+
+  return (
+    <section className="business-panel fulfilment">
+      <small>Sunrise Bakery · SRB-2041</small>
+      <h1>Fulfilment queue</h1>
+      <div className="order-filters" role="group" aria-label="Filter orders by fulfilment stage">
+        {orderFilters.map(([key, label]) => (
+          <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)}>
+            {label} <span>{key === "all" ? orders.length : groups[key]?.length ?? 0}</span>
+          </button>
+        ))}
+      </div>
+      <div className="merchant-order-list">
+        {sortedOrders.map((order) => {
+          const pickup = order.method === "Pickup";
+          const current = orderStages.indexOf(order.stage);
+          const stageLabels = {
+            Placed: "Order placed",
+            Accepted: "Accepted",
+            Preparing: "Preparing",
+            Ready: pickup ? "Ready for pickup" : "Ready for dispatch",
+            Delivered: pickup ? "Collected" : "Delivered",
+          };
+          const actions = {
+            Placed: "Accept order",
+            Accepted: "Start preparing",
+            Preparing: pickup ? "Mark ready for pickup" : "Mark ready for dispatch",
+            Ready: pickup ? "Confirm collection" : "Mark delivered",
+          };
+          const shortId = order.id.slice(0, 8);
+          return (
+            <article className="merchant-order" key={order.id} aria-labelledby={"order-" + order.id}>
+              <div className="merchant-order-header">
+                <div>
+                  <small>Order #{shortId} · {order.method}</small>
+                  <h2 id={"order-" + order.id}>{order.items.map(({ quantity, name }) => quantity + " × " + name).join(", ")}</h2>
+                </div>
+                <strong>{checkoutMoney(order.amount)}</strong>
+              </div>
+              <ol className="order-progress" aria-label="Fulfilment progress">
+                {orderStages.map((stage, index) => {
+                  const completed = index < current || order.stage === "Delivered";
+                  const active = index === current;
+                  const event = order.events?.find((entry) => entry.stage === stage);
+                  return (
+                    <li key={stage} data-step={completed ? "done" : active ? "current" : "pending"} aria-current={active ? "step" : undefined}>
+                      <span className="order-step-dot" aria-hidden="true">{completed ? "✓" : ""}</span>
+                      <span>{stageLabels[stage]}</span>
+                      {event?.time && <time dateTime={event.time}>{orderTime.format(new Date(event.time))}</time>}
+                    </li>
+                  );
+                })}
+              </ol>
+              <div className="merchant-order-footer">
+                <details>
+                  <summary>Payment reference</summary>
+                  <code>{order.payment}</code>
+                </details>
+                {next[order.stage] && (
+                  <button type="button" disabled={busy} onClick={() => advance(order)}>
+                    {actions[order.stage]} <ArrowRight size={16} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+        {!sortedOrders.length && <p className="merchant-queue-empty">{orders.length ? "No orders in this stage." : "New cake orders will appear here after payment."}</p>}
+      </div>
+    </section>
+  );
+}
+
 function CheckoutQr({ url, label, size }) {
   const [image, setImage] = useState("");
   useEffect(() => {
@@ -875,20 +948,14 @@ export default function Product() {
       ) : role === "customer" ? (
         <Customer state={state} run={run} busy={busy} />
       ) : role === "merchant" ? (
-        <section className="business-panel fulfilment">
-          <small>Sunrise Bakery · SRB-2041</small>
-          <h1>Fulfilment queue</h1>
-          <Orders
-            orders={state.orders}
-            busy={busy}
-            act={(o) =>
-              run(
-                () => request("fulfil", { ref: o.ref, stage: next[o.stage] }),
-                "Fulfilment updated",
-              )
-            }
-          />
-        </section>
+        <MerchantOrders
+          orders={state.orders}
+          busy={busy}
+          advance={(order) => run(
+            () => request("fulfil", { ref: order.ref, stage: next[order.stage] }),
+            "Order updated",
+          )}
+        />
       ) : (
         <Analyst cases={state.cases} refresh={refresh} demoOrigin={state.demoOrigin} analystDemoQr={state.analystDemoQr} />
       )}

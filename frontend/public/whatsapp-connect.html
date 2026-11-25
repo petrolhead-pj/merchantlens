@@ -6,6 +6,7 @@
   <style>
     body { margin:0; font:16px system-ui,sans-serif; background:#f4f0e5; color:#1e2922; }
     main { max-width:620px; margin:40px auto; padding:24px; background:#fffaf1; border:1px solid #28362c; box-shadow:5px 5px #28362c; }
+    [hidden] { display: none !important; }
     h1 { font-size:28px; } img { width:280px; max-width:100%; display:block; margin:20px auto; }
     label { display:grid; gap:8px; margin:20px 0 12px; } input,button { padding:12px; font:inherit; }
     button { background:#245e4a; color:white; border:0; cursor:pointer; } #state { color:#245e4a; font-weight:600; }
@@ -38,6 +39,7 @@
       document.querySelector("#recipient button").disabled = data.recipientConfigured;
       document.querySelector("#recipient input").disabled = data.recipientConfigured;
       state.textContent = data.state === "scan" ? "Scan the QR code" : data.state === "connected" ? "WhatsApp connected" :
+        data.state === "connection failed" ? "The WhatsApp browser could not start or load. Check the server window for the startup error." :
         data.state === "disabled" ? "Start the WhatsApp demo launcher to connect." : "Status: " + data.state;
       document.querySelector("#pairing").hidden = !data.code;
       document.querySelector("#pairing-code").textContent = data.code || "";
