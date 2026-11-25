@@ -83,16 +83,47 @@ export function decide(state,outcome,time=new Date().toISOString()) {
   const next={...state,outcome};
   return {...next,audit:[...state.audit,{caseId:state.context.caseId,session:state.context.session,time,text:outcome,after:snapshot(next)}]};
 }
-export function checkoutVerdict(kinds){
+export function checkoutVerdict(kinds, amount = 50000){
   const has=kind=>kinds.includes(kind);
-  if(has('payment')&&(has('credit')||has('topup')))return {status:'Purpose mismatch — review',why:'Sunrise Bakery received ₹500 linked to '+(has('credit')?'a wallet credit':'an observed wallet top-up')+', which conflicts with its declared bakery business.'};
-  if(['payment','cake','order','delivery'].every(has))return {status:'Cake sale supported',why:'Sunrise Bakery received ₹500 for a cake checkout matched to its order and delivery record.'};
-  return {status:'Purpose unverified',why:!has('payment')?'Evidence is waiting for provider confirmation.':has('cake')?'The cake checkout matches this payment. Order or delivery evidence is pending.':'Sunrise Bakery received ₹500. No independent checkout observation has matched this payment yet.'};
+  const paid = "₹" + (amount / 100).toLocaleString("en-IN");
+  if(has('payment')&&(has('credit')||has('topup')))return {status:'Purpose mismatch — review',why:'Sunrise Bakery received '+paid+' linked to '+(has('credit')?'a wallet credit':'an observed wallet top-up')+', which conflicts with its declared bakery business.'};
+  if(['payment','cake','order','delivery'].every(has))return {status:'Cake sale supported',why:'Sunrise Bakery received '+paid+' for a cake checkout matched to its order and delivery record.'};
+  return {status:'Purpose unverified',why:!has('payment')?'Evidence is waiting for provider confirmation.':has('cake')?'The cake checkout matches this payment. Order or delivery evidence is pending.':'Sunrise Bakery received '+paid+'. No independent checkout observation has matched this payment yet.'};
+}
+
+const matchFields = [
+  ["payment", "Payment ID"],
+  ["ref", "Checkout reference"],
+  ["merchant", "Merchant ID"],
+  ["amount", "Amount (minor units)"],
+  ["currency", "Currency"],
+];
+
+export function checkoutEvidence(records) {
+  const payment = records.find(({ event }) => event.kind === "payment");
+  const matches = (entry) => payment && matchFields.every(([field]) =>
+    payment.event[field] !== undefined && payment.event[field] === entry.event[field]
+  );
+  const walletCredit = records.find((entry) => entry.event.kind === "credit" && matches(entry));
+  const browserTopup = records.find((entry) => entry.event.kind === "topup" && matches(entry));
+  const trigger = walletCredit || browserTopup;
+  return {
+    kinds: records.filter(({ event }) => !["credit", "topup"].includes(event.kind))
+      .map(({ event }) => event.kind)
+      .concat(walletCredit ? ["credit"] : [], browserTopup ? ["topup"] : []),
+    trace: trigger ? {
+      payment, trigger,
+      checks: matchFields.map(([field, label]) => ({
+        label, payment: payment.event[field], trigger: trigger.event[field],
+      })),
+      browserMatched: Boolean(browserTopup),
+    } : null,
+  };
 }
 
 export function commerceFinding(records, order, unresolved) {
-  const kinds = records.map(record => record.event.kind);
-  const finding = checkoutVerdict(kinds);
+  const { kinds } = checkoutEvidence(records);
+  const finding = checkoutVerdict(kinds, records.find(({ event }) => event.kind === "payment")?.event.amount);
   if (finding.status === 'Purpose mismatch — review') return finding;
   if (finding.status === 'Cake sale supported') {
     const completion = order?.method === 'Pickup' ? 'collection' : 'delivery';

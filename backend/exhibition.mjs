@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { checkoutVerdict } from "../frontend/src/review-policy.js";
+import { checkoutEvidence, checkoutVerdict } from "../frontend/src/review-policy.js";
 
 export const titles = {
   payment: "Payment confirmed",
@@ -20,7 +20,7 @@ const sources = {
   credit: "Simulated wallet ledger",
 };
 const uuid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
-export function validate(e) {
+export function validate(e, variableAmount = false) {
   const fields = [
     "kind",
     "ref",
@@ -48,15 +48,15 @@ export function validate(e) {
       (v) => typeof v === "string" && uuid.test(v),
     ) ||
     e.merchant !== "SRB-2041" ||
-    e.amount !== 50000 ||
+    (variableAmount ? !Number.isSafeInteger(e.amount) || e.amount < 1 || e.amount > 9999999 : e.amount !== 50000) ||
     e.currency !== "INR" ||
     !Number.isFinite(Date.parse(e.time)) ||
     Date.parse(e.time) > Date.now() + 30000
   )
     throw Error("Invalid record identity, merchant, amount or event time");
 }
-export function append(previous, e, received = new Date().toISOString()) {
-  validate(e);
+export function append(previous, e, received = new Date().toISOString(), variableAmount = false) {
+  validate(e, variableAmount);
   const c = previous ?? {
     id: e.ref,
     version: 0,
@@ -84,7 +84,7 @@ export function append(previous, e, received = new Date().toISOString()) {
     ...c.records,
     { source: sources[e.kind], event: e, received },
   ];
-  const verdict = checkoutVerdict(records.map((r) => r.event.kind));
+  const verdict = checkoutVerdict(checkoutEvidence(records).kinds);
   const reopened =
     c.outcome !== "Open" &&
     verdict.status === "Purpose mismatch — review" &&

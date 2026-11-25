@@ -4,6 +4,7 @@ for (const path of [
   "cloud/handlers.mjs",
   "backend/exhibition.mjs",
   "frontend/src/review-policy.js",
+  "frontend/src/checkout-prices.js",
   "frontend/src/case-data.js",
   "frontend/src/money-trail-data.js",
   "frontend/package.json",

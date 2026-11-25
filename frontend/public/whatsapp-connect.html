@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MerchantLens · WhatsApp connection</title>
+  <style>
+    body { margin:0; font:16px system-ui,sans-serif; background:#f4f0e5; color:#1e2922; }
+    main { max-width:620px; margin:40px auto; padding:24px; background:#fffaf1; border:1px solid #28362c; box-shadow:5px 5px #28362c; }
+    h1 { font-size:28px; } img { width:280px; max-width:100%; display:block; margin:20px auto; }
+    label { display:grid; gap:8px; margin:20px 0 12px; } input,button { padding:12px; font:inherit; }
+    button { background:#245e4a; color:white; border:0; cursor:pointer; } #state { color:#245e4a; font-weight:600; }
+    .note { color:#59645c; line-height:1.5; } a { color:#245e4a; }
+  </style>
+</head>
+<body>
+<main>
+  <a href="/analyst">← Analyst dashboard</a>
+  <h1>Connect WhatsApp</h1>
+  <p class="note">On the sending phone, open WhatsApp → Linked devices → Link a device and follow the linking instructions below.</p>
+  <p id="state" role="status">Connecting…</p>
+  <p id="pairing" hidden>On your phone, choose Link with phone number instead and enter <strong id="pairing-code"></strong>.</p>
+  <img id="qr" alt="WhatsApp Web linking QR code" hidden>
+  <form id="recipient">
+    <label>Alert recipient, including country code <input name="number" inputmode="tel" placeholder="+91 98765 43210" required></label>
+    <button type="submit">Save recipient</button>
+  </form>
+  <p class="note">Alerts go only to the saved recipient. The number locks for this server session. At most five alerts are attempted per session, with at least 15 seconds between attempts.</p>
+  <p id="result" role="status"></p>
+  <p class="note">Use an opted-in test recipient. WhatsApp Web is an unofficial integration and the connected account may be restricted.</p>
+</main>
+<script>
+  const state = document.querySelector("#state");
+  const image = document.querySelector("#qr");
+  async function refresh() {
+    try {
+      const response = await fetch("/api/whatsapp-web/status", { cache: "no-store" });
+      const data = await response.json();
+      document.querySelector("#recipient button").disabled = data.recipientConfigured;
+      document.querySelector("#recipient input").disabled = data.recipientConfigured;
+      state.textContent = data.state === "scan" ? "Scan the QR code" : data.state === "connected" ? "WhatsApp connected" :
+        data.state === "disabled" ? "Start the WhatsApp demo launcher to connect." : "Status: " + data.state;
+      document.querySelector("#pairing").hidden = !data.code;
+      document.querySelector("#pairing-code").textContent = data.code || "";
+      if (data.code) state.textContent = "Enter the pairing code on the sending phone";
+      image.hidden = !data.qr;
+      if (data.qr && image.src !== data.qr) image.src = data.qr;
+    } catch { state.textContent = "MerchantLens server is unavailable."; }
+  }
+  document.querySelector("#recipient").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const result = document.querySelector("#result");
+    try {
+      const response = await fetch("/api/whatsapp-web/recipient", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ number: new FormData(event.currentTarget).get("number") }),
+      });
+      if (!response.ok) throw Error("Check the number and include the country code.");
+      result.textContent = "Recipient saved for this server session.";
+    } catch (error) { result.textContent = error.message; }
+  });
+  refresh();
+  setInterval(refresh, 2000);
+</script>
+</body>
+</html>

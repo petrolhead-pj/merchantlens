@@ -10,7 +10,7 @@ import { reconcilePayU } from "./payu.mjs";
 export function passwordHash(password, salt) {
   return scryptSync(password, salt, 32).toString("hex");
 }
-export function productApi(store, accounts, { demoOrigin, payu, ...options } = {}) {
+export function productApi(store, accounts, { demoOrigin, payu, localDemo = false, ...options } = {}) {
   const service = commerce(store, options),
     sessions = new Map(),
     attempts = new Map(),
@@ -19,8 +19,8 @@ export function productApi(store, accounts, { demoOrigin, payu, ...options } = {
   const signPhone = (payload) => createHmac("sha256", phoneKey).update(payload).digest();
   const phoneLifetime = 10 * 60 * 1000;
   const analystDemoQr = Boolean(demoOrigin && !payu && store.mode === "SQLite");
-  async function phoneLink(actor, { ref, kind, method, shareEvidence }, payuMode) {
-    if (!ref) ({ ref } = await service.intent(actor, { kind, method }, payuMode));
+  async function phoneLink(actor, { ref, kind, method, flavour, shareEvidence }, payuMode) {
+    if (!ref) ({ ref } = await service.intent(actor, { kind, method, flavour }, payuMode));
     const checkout = await service.resumeCheckout(actor, { ref }, payuMode);
     if (checkout.confirmed) fail(409, "Payment already confirmed");
     const expiresAt = Date.now() + phoneLifetime;
@@ -49,7 +49,10 @@ export function productApi(store, accounts, { demoOrigin, payu, ...options } = {
     const checkout = await service.resumeCheckout(actor, { ref }, payu?.mode);
     if (operation === "state") return checkout;
     if (operation === "confirm") {
-      const result = await service.pay(actor, { ref, observation: body.observation });
+      if (checkout.kind === "topup" && !checkout.confirmed && typeof body.amount !== "string")
+        fail(400, "Enter a wallet top-up amount");
+      await service.pay(actor, { ref, observation: body.observation, amount: body.amount });
+      const result = await service.resumeCheckout(actor, { ref }, payu?.mode);
       notify(merchant);
       return result;
     }
@@ -153,7 +156,17 @@ export function productApi(store, accounts, { demoOrigin, payu, ...options } = {
         );
         return res.end('{"signedIn":true}');
       }
-      const actor = sessions.get(digest(token));
+      const passwordFree = localDemo && !publicOrigin && req.socket.remoteAddress === "127.0.0.1";
+      let actor = sessions.get(digest(token));
+      if (passwordFree) {
+        const customer = req.headers["x-merchantlens-demo-buyer"];
+        const user = role === "customer" && customer === "second-buyer"
+          ? customer
+          : { customer: "buyer", merchant: "bakery", analyst: "reviewer" }[role];
+        const account = accounts.find((entry) => entry.user === user && entry.role === role);
+        if (!account) fail(503, "Local demo account unavailable");
+        actor = { user, role, merchant: account.merchant, until: Infinity };
+      }
       if (!actor || actor.role !== role || actor.until < Date.now())
         fail(401, "Sign in to continue");
       if (operation === "logout" && req.method === "POST") {
@@ -180,6 +193,7 @@ export function productApi(store, accounts, { demoOrigin, payu, ...options } = {
           JSON.stringify({
             user: actor.user,
             mode: store.mode,
+            ...(passwordFree ? { localDemo: true } : {}),
             ...(role !== "merchant" && demoOrigin ? { demoOrigin } : {}),
             ...(role === "analyst" && analystDemoQr ? { analystDemoQr } : {}),
             ...(role === "customer" && demoOrigin && payu ? { demoPayUMode: payu.mode } : {}),
