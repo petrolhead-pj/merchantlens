@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { append, review, validate } from "./exhibition.mjs";
-import { commerceFinding } from "../frontend/src/review-policy.js";
+import { checkoutEvidence, commerceFinding } from "../frontend/src/review-policy.js";
+import { cakePrices, checkoutMoney, walletAmount } from "../frontend/src/checkout-prices.js";
 export const merchantId = "SRB-2041";
 export const price = 50000;
 export const mismatchStatus = "Purpose mismatch — review";
@@ -43,18 +44,25 @@ const descriptions = {
   credit: "Committed simulated wallet ledger",
   delivery: "Merchant fulfilment record",
 };
+function checkoutLabels(r) {
+  const amount = checkoutMoney(r.amount ?? price);
+  return r.kind === "cake"
+    ? [`Buy ${(r.flavour || "Chocolate cake").toLowerCase()} · ${amount}`, "Pay"]
+    : ["Top up demo wallet", "Top up demo wallet · ₹500", "Pay"];
+}
 function record(r, kind, id = randomUUID(), observation) {
   const event = observation || {
     id,
     ref: r.ref,
     payment: r.payment,
     merchant: r.merchant,
-    amount: price,
+    amount: r.amount ?? price,
     currency: "INR",
     kind,
     time: now(),
+    ...(kind === "order" && r.order?.items?.[0]?.name ? { label: r.order.items[0].name } : {}),
   };
-  r.case = append(r.case, event);
+  r.case = append(r.case, event, undefined, true);
   r.case.rule = "commerce/1";
   const paymentSource = r.gateway ? "Verified PayU " + r.gateway.mode + " payment" : descriptions.payment;
   const added = r.case.records.at(-1);
@@ -85,7 +93,7 @@ function credit(r) {
     payment: r.payment,
     ref: r.ref,
     owner: r.owner,
-    amount: price,
+    amount: r.amount ?? price,
     currency: "INR",
     posted: now(),
   };
@@ -107,14 +115,14 @@ export function commerce(store, { sendWhatsApp = false } = {}) {
           commerceFinding(r.case.records, r.order, r.unresolved),
         );
       if (r.case?.status === mismatchStatus && previousFinding !== mismatchStatus && !r.whatsapp) {
-        const evidence = r.case.records.find(({ event }) => event.kind === "credit" || event.kind === "topup");
+        const evidence = checkoutEvidence(r.case.records).trace.trigger;
         r.whatsapp = {
           status: sendWhatsApp ? "queued" : "preview",
           report: {
             caseId: r.ref,
             paymentId: r.payment,
             merchantId: r.merchant,
-            amount: price,
+            amount: r.amount ?? price,
             reason: r.case.why,
             evidenceId: evidence.event.id,
           },
@@ -126,7 +134,7 @@ export function commerce(store, { sendWhatsApp = false } = {}) {
     }
     fail(409, "Concurrent change. Retry this operation.");
   }
-  async function confirm(actor, { ref, observation }, receipt) {
+  async function confirm(actor, { ref, observation, amount }, receipt) {
     await mutate(actor, ref, (r) => {
       if (r.cancelled) fail(410, "This checkout was cancelled");
       if (Boolean(r.gateway) !== Boolean(receipt) || (receipt && r.gateway.txnid !== receipt.txnid))
@@ -136,6 +144,10 @@ export function commerce(store, { sendWhatsApp = false } = {}) {
           fail(409, "PayU payment identity changed");
         return false;
       }
+      if (r.kind === "topup" && amount !== undefined) {
+        r.amount = walletAmount(amount);
+        if (r.amount === null) fail(400, "Enter an amount from ₹0.01 to ₹99,999.99");
+      }
       if (receipt) {
         r.gateway.providerPaymentId = receipt.providerPaymentId;
         observation = r.gateway.observation;
@@ -143,12 +155,12 @@ export function commerce(store, { sendWhatsApp = false } = {}) {
       }
       if (observation) {
         try {
-          validate(observation);
+          validate(observation, true);
         } catch {
           fail(400, "Invalid observer record");
         }
         if (observation.ref !== ref || observation.payment !== r.payment || observation.kind !== r.kind ||
-            observation.label !== (r.kind === "cake" ? "Buy chocolate cake · ₹500" : "Top up demo wallet · ₹500")) {
+            observation.amount !== (r.amount ?? price) || !checkoutLabels(r).includes(observation.label)) {
           r.unresolved = { record: observation, received: now(),
             reason: "The reported checkout reference, payment ID or visible action did not match this transaction." };
         }
@@ -159,8 +171,8 @@ export function commerce(store, { sendWhatsApp = false } = {}) {
       record(r, "payment", r.payment);
       if (r.kind === "cake") {
         r.order = {
-          id: randomUUID(), items: [{ name: "Chocolate cake", quantity: 1, unitAmount: price }],
-          amount: price, payment: r.payment, ref: r.ref, method: r.method, stage: "Placed", events: [],
+          id: randomUUID(), items: [{ name: r.flavour || "Chocolate cake", quantity: 1, unitAmount: r.amount ?? price }],
+          amount: r.amount ?? price, payment: r.payment, ref: r.ref, method: r.method, stage: "Placed", events: [],
         };
         record(r, "order", r.order.id);
       }
@@ -171,11 +183,13 @@ export function commerce(store, { sendWhatsApp = false } = {}) {
     return { ref, confirmed: true };
   }
   return {
-    async intent(actor, { kind, method = "Delivery" }, payuMode) {
+    async intent(actor, { kind, method = "Delivery", flavour = "Chocolate cake" }, payuMode) {
       requireRole(actor, "customer");
       if (
         !["cake", "topup"].includes(kind) ||
-        !["Delivery", "Pickup"].includes(method)
+        !["Delivery", "Pickup"].includes(method) ||
+        !Object.hasOwn(cakePrices, flavour) ||
+        (payuMode && kind === "cake" && flavour !== "Chocolate cake")
       )
         fail(400, "Invalid checkout");
       const r = {
@@ -184,13 +198,14 @@ export function commerce(store, { sendWhatsApp = false } = {}) {
         payment: randomUUID(),
         kind,
         method,
+        ...(kind === "cake" ? { flavour, amount: cakePrices[flavour] } : {}),
         owner: actor.user,
         version: 1,
         created: now(),
         ...(kind === "cake" && payuMode ? { gateway: { mode: payuMode, txnid: randomBytes(12).toString("hex") } } : {}),
       };
       if (!(await store.save(r))) fail(409, "Checkout conflict");
-      return { ref: r.ref, payment: r.payment, ...(r.gateway ? { payuMode } : {}) };
+      return { ref: r.ref, payment: r.payment, amount: r.amount, ...(r.gateway ? { payuMode } : {}) };
     },
     async resumeCheckout(actor, { ref }, payuMode) {
       requireRole(actor, "customer");
@@ -201,8 +216,9 @@ export function commerce(store, { sendWhatsApp = false } = {}) {
       if (row.kind === "cake" && row.gateway?.mode !== payuMode)
         fail(409, "Open this checkout in its original payment environment");
       return {
-        ref: row.ref, payment: row.payment, kind: row.kind, method: row.method,
+        ref: row.ref, payment: row.payment, kind: row.kind, method: row.method, flavour: row.flavour,
         confirmed: Boolean(row.confirmed),
+        amount: row.amount ?? (row.kind === "cake" || row.confirmed ? price : null),
         ...(row.gateway ? { payuMode: row.gateway.mode, submittedToPayU: Boolean(row.gateway.prepared) } : {}),
       };
     },

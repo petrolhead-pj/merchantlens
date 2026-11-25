@@ -155,6 +155,23 @@ body {
 .heading [role="status"]:has(a):before {
   background: #ae6f1f;
 }
+.detection-trace {
+  padding: 16px;
+  border-top: 1px solid var(--line);
+}
+.detection-trace summary { cursor: pointer; font-weight: 650; }
+.detection-trace p { margin: 10px 0; }
+.trace-table-scroll { overflow-x: auto; margin-block: 14px; }
+.detection-trace table { width: 100%; border-collapse: collapse; }
+.detection-trace caption { text-align: left; margin-bottom: 8px; }
+.detection-trace th, .detection-trace td {
+  text-align: left;
+  padding: 7px;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.detection-trace pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 .workgrid {
   display: grid;
   grid-template-columns: minmax(175px, 0.68fr) minmax(0, 2.8fr) minmax(

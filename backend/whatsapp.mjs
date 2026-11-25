@@ -4,18 +4,19 @@ const knownConnectionFailures = new Set([
 ]);
 
 export function configuredWhatsApp(env, fetchMessage = fetch) {
-  if (env.MERCHANTLENS_WHATSAPP !== "live") return null;
+  const mode = env.MERCHANTLENS_WHATSAPP;
+  if (mode !== "live" && mode !== "test") return null;
   const { WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ADMIN, WHATSAPP_GRAPH_VERSION,
     WHATSAPP_TEMPLATE, WHATSAPP_TEMPLATE_LANGUAGE = "en" } = env;
   const to = WHATSAPP_ADMIN?.replace(/^\+/, "");
   if (!WHATSAPP_TOKEN || !/^\d+$/.test(WHATSAPP_PHONE_NUMBER_ID ?? "") ||
       !/^[1-9]\d{6,14}$/.test(to ?? "") || !/^v\d+\.\d+$/.test(WHATSAPP_GRAPH_VERSION ?? "")) {
-    throw Error("Configure WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ADMIN and WHATSAPP_GRAPH_VERSION for live mode.");
+    throw Error("Configure WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ADMIN and WHATSAPP_GRAPH_VERSION before enabling WhatsApp alerts.");
   }
 
   return async (report) => {
     const { caseId, merchantId, paymentId, evidenceId, reason } = report;
-    const content = WHATSAPP_TEMPLATE ? {
+    const content = mode === "live" && WHATSAPP_TEMPLATE ? {
       type: "template",
       template: {
         name: WHATSAPP_TEMPLATE,

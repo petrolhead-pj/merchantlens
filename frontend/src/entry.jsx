@@ -7,7 +7,7 @@ const params = new URLSearchParams(location.search);
 if (location.pathname === "/phone") {
   const { PhoneCheckout } = await import("./Product.jsx");
   createRoot(document.getElementById("root")).render(<PhoneCheckout />);
-} else if (["/customer", "/merchant", "/analyst"].includes(location.pathname)) {
+} else if (["/customer", "/betting.html", "/merchant", "/analyst"].includes(location.pathname)) {
   const { default: Product } = await import("./Product.jsx");
   createRoot(document.getElementById("root")).render(<Product />);
 } else if (["lab", "offline", "exhibition", "case"].some((name) => params.has(name))) {

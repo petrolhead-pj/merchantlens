@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 
 const proxy = { "/api": { target: process.env.MERCHANTLENS_API_TARGET || "http://127.0.0.1:3001" } };
 const checkoutPages = ["/bakery.html", "/sportsbook.html"];
-const pages = ["/index.html", ...checkoutPages];
+const pages = ["/index.html", "/betting.html", ...checkoutPages];
 
 function previewPages() {
   return {

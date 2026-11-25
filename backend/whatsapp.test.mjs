@@ -61,6 +61,13 @@ test("Meta receives a case report at the configured admin number, and an ambiguo
   assert.equal(request.url, "https://graph.facebook.com/v99.0/12345/messages");
   assert.equal(request.body.to, "919999999999");
   assert.match(request.body.text.body, /Case case-1[\s\S]*Evidence evidence-1/);
+  const sendTest = configuredWhatsApp({
+    ...env, MERCHANTLENS_WHATSAPP: "test", WHATSAPP_TEMPLATE: "production_alert",
+  }, async (_url, options) => {
+    assert.equal(JSON.parse(options.body).type, "text");
+    return Response.json({ messages: [{ id: "wamid.test" }] });
+  });
+  assert.deepEqual(await sendTest(report), { status: "submitted", messageId: "wamid.test" });
   assert.equal(configuredWhatsApp({}), null);
   const disconnected = configuredWhatsApp(env, async () => {
     throw new Error("fetch failed", { cause: { code: "ENETUNREACH" } });

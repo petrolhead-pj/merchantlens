@@ -9,6 +9,69 @@ import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { passwordHash, productApi } from "./product-http.mjs";
+import { checkoutEvidence, commerceFinding } from "../frontend/src/review-policy.js";
+
+test("selected cake flavour survives checkout and reaches the merchant order", async (t) => {
+  const store = sqliteStore(":memory:");
+  t.after(() => store.close());
+  const app = commerce(store);
+  const buyer = { merchant: merchantId, role: "customer", user: "buyer" };
+  const merchant = { merchant: merchantId, role: "merchant", user: "bakery" };
+  const intent = await app.intent(buyer, { kind: "cake", flavour: "Pistachio cake" });
+  assert.equal((await app.resumeCheckout(buyer, { ref: intent.ref })).flavour, "Pistachio cake");
+  await app.pay(buyer, intent);
+  const state = await app.read(merchant);
+  assert.equal(state.orders[0].items[0].name, "Pistachio cake");
+  await assert.rejects(app.intent(buyer, { kind: "cake", flavour: "Unknown cake" }));
+});
+
+test("a wallet credit must match the payment identifiers to trigger review", () => {
+  const scope = { ref: randomUUID(), payment: randomUUID(), merchant: merchantId, amount: 50000, currency: "INR" };
+  const payment = { event: { ...scope, kind: "payment" } };
+  const unrelated = { event: { ...scope, kind: "credit", payment: randomUUID() } };
+  assert.equal(commerceFinding([payment, unrelated]).status, "Purpose unverified");
+  assert.equal(checkoutEvidence([payment, unrelated]).trace, null);
+  const linked = { event: { ...scope, kind: "credit" } };
+  const records = [payment, unrelated, linked];
+  assert.equal(commerceFinding(records).status, "Purpose mismatch — review");
+  assert.equal(checkoutEvidence(records).trace.trigger, linked);
+  assert.equal(checkoutEvidence(records).trace.browserMatched, false);
+});
+
+test("local demo serves all roles without passwords and preserves checkout ownership", async (t) => {
+  const store = sqliteStore(":memory:");
+  const accounts = [
+    ["customer", "buyer"], ["customer", "second-buyer"], ["merchant", "bakery"], ["analyst", "reviewer"],
+  ].map(([role, user]) => ({ role, user, merchant: merchantId }));
+  const api = productApi(store, accounts, { localDemo: true });
+  const server = createServer((req, res) =>
+    api(req, res, req.headers.host.startsWith("localhost:") ? "https://public.example.test" : undefined)
+  );
+  t.after(() => { server.closeAllConnections(); server.close(); store.close(); });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const base = `http://127.0.0.1:${server.address().port}/api/app/`;
+  const buyerB = { "X-MerchantLens-Demo-Buyer": "second-buyer" };
+  for (const [role, user] of accounts.map(({ role, user }) => [role, user])) {
+    const headers = user === "second-buyer" ? buyerB : {};
+    const response = await fetch(base + role + "/state", { headers });
+    assert.equal(response.status, 200);
+    const state = await response.json();
+    assert.equal(state.user, user);
+    assert.equal(state.localDemo, true);
+  }
+  const post = (operation, body, headers = {}) => fetch(base + "customer/" + operation, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headers },
+    body: JSON.stringify(body),
+  });
+  const intent = await (await post("checkout", { kind: "cake" }, buyerB)).json();
+  assert.ok(intent.ref);
+  assert.equal((await post("confirm", { ref: intent.ref })).status, 404);
+  assert.equal((await post("confirm", { ref: intent.ref }, buyerB)).status, 200);
+  const publicState = await fetch(base.replace("127.0.0.1", "localhost") + "customer/state", { headers: buyerB });
+  assert.equal(publicState.status, 401);
+});
 
 test("a payment QR grants access to one checkout without opening the customer account", async (t) => {
   const store = sqliteStore(":memory:");
@@ -39,8 +102,18 @@ test("a payment QR grants access to one checkout without opening the customer ac
   assert.equal(accountState.status, 401);
   const phoneState = await (await post("phone/state", { token })).json();
   assert.deepEqual(phoneState, checkout);
-  for (let count = 0; count < 2; count++)
-    assert.equal((await post("phone/confirm", { token, ref: other.ref })).status, 200);
+  assert.equal((await post("phone/confirm", { token })).status, 400);
+  assert.equal((await post("phone/confirm", { token, amount: "0" })).status, 400);
+  for (const amount of ["375.25", "900"])
+    assert.equal((await post("phone/confirm", { token, ref: other.ref, amount })).status, 200);
+  const paid = await store.get(merchantId, checkout.ref);
+  assert.equal(paid.ledger.amount, 37525);
+  assert.ok(paid.case.records.every(({ event }) => event.amount === 37525));
+  const cake = await (await post("customer/phone-link", { kind: "cake", flavour: "Pistachio cake" }, cookie)).json();
+  const cakeToken = new URL(cake.url).hash.slice(1);
+  assert.equal(cake.checkout.amount, 65000);
+  assert.equal((await post("phone/confirm", { token: cakeToken, amount: "1" })).status, 200);
+  assert.equal((await store.get(merchantId, cake.checkout.ref)).order.amount, 65000);
   assert.equal((await store.get(merchantId, checkout.ref)).ledger.payment, checkout.payment);
   assert.equal((await store.get(merchantId, other.ref)).confirmed, undefined);
 });
@@ -105,7 +178,7 @@ test("committed orders, credits, findings and decisions survive restart, retries
   await assert.rejects(app.resumeCheckout(buyer, abandoned), { status: 410 });
   await assert.rejects(app.pay(buyer, abandoned), { status: 410 });
   const cake = await app.intent(buyer, { kind: "cake", method: "Pickup" });
-  assert.deepEqual(await app.resumeCheckout(buyer, cake), { ...cake, kind: "cake", method: "Pickup", confirmed: false });
+  assert.deepEqual(await app.resumeCheckout(buyer, cake), { ...cake, kind: "cake", method: "Pickup", flavour: "Chocolate cake", confirmed: false });
   await assert.rejects(app.resumeCheckout(other, cake), { status: 404 });
   await assert.rejects(app.resumeCheckout(buyer, cake, "live"), { status: 409 });
   const observation = {

@@ -42,10 +42,20 @@ if (process.argv.includes("--setup")) {
     "Created workstation accounts. Store the initial-logins.txt handoff privately.",
   );
 } else {
-  const sendWhatsApp = configuredWhatsApp(process.env);
+  const useWhatsAppWeb = process.env.MERCHANTLENS_WHATSAPP === "web";
+  const webWhatsApp = useWhatsAppWeb
+    ? (await import("../backend/whatsapp-web.mjs")).createWhatsAppWeb({ directory: dir })
+    : null;
+  const sendWhatsApp = webWhatsApp ? (report) => webWhatsApp.send(report) : configuredWhatsApp(process.env);
   const payu = configuredPayU(process.env);
   const port = Number(process.env.PRODUCT_PORT || 4180);
-  const demoHost = process.env.PRODUCT_DEMO_HOST;
+  const localWifi = Object.entries(networkInterfaces())
+    .filter(([name]) => /wi-?fi|wireless|wlan/i.test(name))
+    .flatMap(([, addresses]) => addresses || [])
+    .find((address) => address.family === "IPv4" && !address.internal &&
+      /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(address.address));
+  const demoHost = process.env.PRODUCT_DEMO_HOST ||
+    (process.env.MERCHANTLENS_LOCAL_DEMO === "1" && !process.env.PRODUCT_PUBLIC_ORIGIN && !payu ? localWifi?.address : undefined);
   const localAddresses = Object.values(networkInterfaces()).flat();
   if (demoHost && (!/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(demoHost) ||
       !localAddresses.some((address) => address.family === "IPv4" && address.address === demoHost))) {
@@ -60,6 +70,11 @@ if (process.argv.includes("--setup")) {
     throw Error("PRODUCT_PUBLIC_ORIGIN must match PAYU_CALLBACK_ORIGIN when both are set.");
   const publicOrigin = payu?.publicOrigin || publicCheckout?.origin;
   const demoOrigin = publicOrigin || (demoHost ? `http://${demoHost}:${port}` : undefined);
+  if (useWhatsAppWeb && (publicOrigin || payu || process.env.MERCHANTLENS_TABLE || process.env.MERCHANTLENS_LOCAL_DEMO !== "1"))
+    throw Error("WhatsApp Web is only available for the local simulated demo.");
+  const whatsappTest = process.env.MERCHANTLENS_WHATSAPP === "test";
+  if (whatsappTest && (demoOrigin || process.env.MERCHANTLENS_TABLE || process.env.MERCHANTLENS_LOCAL_DEMO !== "1"))
+    throw Error("WhatsApp test mode requires the local SQLite demo on loopback.");
   const root = resolve(process.env.STALL_DIST || "frontend/dist");
   await access(resolve(root, "index.html"));
   const store = process.env.MERCHANTLENS_TABLE
@@ -68,7 +83,13 @@ if (process.argv.includes("--setup")) {
   const api = productApi(
     store,
     JSON.parse(await readFile(resolve(dir, "accounts.json"), "utf8")),
-    { sendWhatsApp: Boolean(sendWhatsApp), demoOrigin, payu },
+    {
+      sendWhatsApp: Boolean(sendWhatsApp),
+      demoOrigin,
+      payu,
+      localDemo: process.env.MERCHANTLENS_LOCAL_DEMO === "1" &&
+        store.mode === "SQLite" && !payu && (!sendWhatsApp || whatsappTest || useWhatsAppWeb) && !publicCheckout,
+    },
   );
   const types = {
     ".html": "text/html",
@@ -90,6 +111,26 @@ if (process.argv.includes("--setup")) {
     } catch {
       res.writeHead(400);
       return res.end("Invalid path");
+    }
+    if (!customerOrigin && path === "/api/whatsapp-web/status" && req.method === "GET") {
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Cache-Control", "no-store");
+      return res.end(JSON.stringify(webWhatsApp ? await webWhatsApp.status() : { state: "disabled" }));
+    }
+    if (!customerOrigin && path === "/api/whatsapp-web/recipient" && req.method === "POST") {
+      if (!webWhatsApp || req.headers.origin !== "http://" + req.headers.host ||
+          req.headers["content-type"] !== "application/json") {
+        res.writeHead(403); return res.end("Forbidden");
+      }
+      try {
+        let body = "";
+        for await (const chunk of req) { body += chunk; if (body.length > 512) throw Error("Request too large"); }
+        webWhatsApp.setRecipient(JSON.parse(body).number);
+        res.setHeader("Content-Type", "application/json");
+        return res.end(JSON.stringify({ configured: true }));
+      } catch {
+        res.writeHead(400); return res.end("Invalid phone number");
+      }
     }
     if (customerOrigin && !(path === "/" || path === "/customer" || path === "/phone" || path === "/chocolate-cake.jpg" ||
       path.startsWith("/assets/") || path.startsWith("/api/app/customer/") || path.startsWith("/api/app/phone/"))) {
@@ -127,6 +168,7 @@ if (process.argv.includes("--setup")) {
       "MerchantLens " + store.mode + " ready on " + server.address().port,
     ),
   );
+  webWhatsApp?.start();
   if (demoHost) {
     const localOrigin = `http://${demoHost}:${port}`;
     http.createServer((req, res) => serve(req, res, localOrigin)).listen(port, demoHost, () =>

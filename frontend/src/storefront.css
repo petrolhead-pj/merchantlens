@@ -1,0 +1,45 @@
+.bakery-store { color: #392a24; }
+.bakery-intro { padding: clamp(36px, 7vw, 84px) clamp(20px, 5vw, 64px); margin-top: 24px; background: #f1e6d7; border: 1px solid #dfcdb9; }
+.bakery-intro { background: linear-gradient(90deg, #f5ebde 0%, #f5ebdeed 43%, #f5ebde33 100%), url('/chocolate-cake.jpg') center right / cover; }
+.bakery-intro p, .store-section-heading p, .store-product-tag { font-size: 11px; letter-spacing: .14em; font-weight: 750; color: #986044; }
+.bakery-intro h1 { font: 400 clamp(48px, 7vw, 84px)/.98 Georgia, serif; letter-spacing: -.05em; margin: 20px 0; }
+.bakery-intro > span { display: block; max-width: 420px; line-height: 1.6; color: #68564a; }
+.bakery-intro a { display: inline-block; margin-top: 24px; color: #483426; text-underline-offset: 5px; font-weight: 650; }
+.store-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 15px; padding: 42px 0 16px; }
+.store-section-heading h2 { font: 400 clamp(29px, 4vw, 43px) Georgia, serif; margin: 8px 0 0; }
+.store-section-heading > span { color: #826e60; font-size: 13px; }
+.bakery-store .shop { background: #fffaf4; border: 1px solid #e1d3c5; }
+.bakery-store .product-info { padding: clamp(20px, 4vw, 44px); }
+.bakery-store .product-info h2 { font: 400 clamp(31px, 4vw, 47px)/1.05 Georgia, serif; margin: 14px 0; }
+.bakery-store .product-info > p { color: #705e51; line-height: 1.6; }
+.bakery-store .product-info .pay { background: #54382b; border-color: #54382b; box-shadow: 3px 3px #d6ad8d; }
+.cake-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+.cake-options button { display: grid; gap: 10px; text-align: left; padding: 18px; min-height: 105px; background: #f2e2d2; border: 1px solid #d9c6b7; color: #503628; font-weight: 650; }
+.cake-options button:nth-child(2) { background: #f8e4e6; }.cake-options button:nth-child(3) { background: #e4ead8; }.cake-options button:nth-child(4) { background: #ead6d4; }
+.cake-options button[aria-pressed="true"] { border: 2px solid #6a432e; }
+.cake-options button:disabled { opacity: .55; }
+.sports-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.sports-tabs button { padding: 7px 12px; border: 1px solid #b4c4b5; border-radius: 20px; background: transparent; color: #283f30; }
+.sports-tabs button[aria-pressed="true"] { background: #183c2b; color: white; }
+.touchline-store { color: #172820; }
+.sports-intro { margin-top: 24px; padding: clamp(28px, 5vw, 55px); background: linear-gradient(115deg,#122e28,#22523a 65%,#4d7137); color: #f5f9ee; }
+.sports-intro p { color: #c0e676; font-size: 11px; letter-spacing: .15em; font-weight: 750; }
+.sports-intro h1 { color: #fff; font-size: clamp(36px, 5vw, 60px); letter-spacing: -.045em; margin: 15px 0; }
+.sports-intro > span { color: #d7e4d8; }
+.sports-fixtures { padding: 28px 0 10px; }
+.sports-fixtures-heading { display: flex; align-items: baseline; justify-content: space-between; }
+.sports-fixtures-heading h2 { margin: 0 0 12px; font-size: 23px; }
+.sports-fixtures-heading span, .sports-fixtures > p { color: #68786d; font-size: 13px; }
+.sports-fixture { display: grid; grid-template-columns: 95px minmax(180px, 1fr) minmax(210px, .8fr); align-items: center; gap: 16px; padding: 15px; background: #182820; color: #f5f9ee; border-bottom: 1px solid #405249; }
+.sports-fixture small { color: #c0e676; font-size: 11px; letter-spacing: .08em; }
+.sports-fixture strong span { color: #9cad9f; font-size: 12px; padding: 0 5px; }
+.sports-fixture > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.sports-fixture > div span { display: grid; gap: 4px; padding: 7px; background: #2b4034; color: #bdcbbc; font-size: 10px; text-align: center; }
+.sports-fixture b { color: white; font-size: 14px; }
+.touchline-store .shop { margin-top: 22px; }
+.touchline-store .store-product-tag { color: #477752; }
+@media (max-width: 650px) {
+  .cake-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .store-section-heading { align-items: start; flex-direction: column; }
+  .sports-fixture { grid-template-columns: 1fr; gap: 8px; }
+}

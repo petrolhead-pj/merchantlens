@@ -17,6 +17,7 @@ import {
   recordName,
   relationName,
 } from "./EvidenceMap.jsx";
+import { checkoutEvidence } from "./review-policy.js";
 const time = (t) => new Date(t).toLocaleTimeString();
 const notificationLabels = {
   preview: "Preview · live sending disabled",
@@ -26,9 +27,40 @@ const notificationLabels = {
   rejected: "Rejected by WhatsApp · check sender setup",
   unknown: "Delivery unconfirmed · check the admin phone",
 };
+function DetectionTrace({ trace, rule, expanded, onToggle }) {
+  const { payment, trigger, checks, browserMatched } = trace;
+  const wallet = trigger.event.kind === "credit";
+  const triggerLabel = wallet ? "Wallet ledger credit" : "Browser top-up observation";
+  return (
+    <details className="detection-trace" open={expanded} onToggle={(event) => onToggle(event.currentTarget.open)}>
+      <summary>How this payment was flagged</summary>
+      <p><strong>{rule}</strong> · The matched {wallet ? "wallet credit" : "top-up observation"} conflicts with the merchant’s declared bakery business. The case is flagged for review.</p>
+      <p>{wallet && !browserMatched
+        ? "No matching browser top-up observation was used. The wallet record was enough to trigger this rule."
+        : wallet ? "The wallet credit triggered the rule. A browser top-up observation also matched."
+          : "This flag relies on a client-reported click. There is no matching wallet-credit record."}</p>
+      <div className="trace-table-scroll">
+        <table>
+          <caption>Matching payment and evidence fields</caption>
+          <thead><tr><th scope="col">Field</th><th scope="col">Confirmed payment</th><th scope="col">{triggerLabel}</th></tr></thead>
+          <tbody>{checks.map(({ label, payment, trigger }) => (
+            <tr key={label}><th scope="row">{label}</th><td><code>{payment}</code></td><td><code>{trigger}</code></td></tr>
+          ))}</tbody>
+        </table>
+      </div>
+      <details>
+        <summary>Raw records and timestamps</summary>
+        <pre>{JSON.stringify({ payment, trigger }, null, 2)}</pre>
+      </details>
+      {wallet && <p>The demo backend posts this simulated ledger credit when the wallet top-up is confirmed. A real investigation would need access to evidence linking the payment to the wallet.</p>}
+    </details>
+  );
+}
+
 export function Investigation({ c, api }) {
   const [selected, select] = useState("payment"),
     [explaining, setExplain] = useState(false),
+    [showTrace, setShowTrace] = useState(false),
     [tab, setTab] = useState("Graph"),
     [message, notice] = useState("");
   const key = selected.replace("edge/", ""),
@@ -40,6 +72,7 @@ export function Investigation({ c, api }) {
   const tone = conflict ? "conflict" : supported ? "supported" : "pending",
     Icon = conflict ? TriangleAlert : supported ? CircleCheck : Clock3;
   const hasOrder = c.nodes.some((n) => n.key === "order");
+  const { trace } = checkoutEvidence(c.records);
   const pick = (k) => {
     select(k);
     setExplain(false);
@@ -47,6 +80,7 @@ export function Investigation({ c, api }) {
   const explain = () => {
     select(c.edges.some((e) => e.to === driver) ? "edge/" + driver : driver);
     setExplain(true);
+    setShowTrace(true);
     setTab("Graph");
   };
   const history = (
@@ -130,6 +164,7 @@ export function Investigation({ c, api }) {
             </b>
           </div>
         </div>
+        {trace && <DetectionTrace trace={trace} rule={c.rule} expanded={showTrace} onToggle={setShowTrace} />}
       </section>
       <aside data-case={c.id} data-version={c.version}>
         <div className="section-head">

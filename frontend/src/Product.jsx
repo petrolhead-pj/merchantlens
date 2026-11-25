@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { Network, ShoppingBag, Wallet, ArrowUpRight, ArrowRight, ScanLine, PackageCheck, Smartphone } from "lucide-react";
 import "./exhibition.css";
 import "./product.css";
+import "./storefront.css";
+import { cakePrices, checkoutMoney, walletAmount } from "./checkout-prices.js";
 import { observeCheckout } from "./checkout-observer.js";
 import { Investigation } from "./Investigation.jsx";
 
@@ -16,17 +18,25 @@ const role = Object.hasOwn(areas, location.pathname.slice(1))
 const phoneCheckout = !["localhost", "127.0.0.1"].includes(location.hostname);
 const checkoutParams = new URLSearchParams(location.search);
 const checkoutLane = checkoutParams.get("checkout");
+const sportsbookPath = "/betting.html";
+const sportsbook = location.pathname === sportsbookPath;
 const checkoutRef = checkoutParams.get("ref");
 const accountHint = checkoutParams.get("account");
 const demoCustomers = ["buyer", "second-buyer"];
+const localBuyer = sportsbook ? "second-buyer" : checkoutParams.get("buyer");
 const money = (n) => "₹" + (n / 100).toLocaleString("en-IN");
 async function appRequest(area, op, body) {
+  const headers = {};
+  if (!phoneCheckout && area === "customer" && localBuyer === "second-buyer") {
+    headers["X-MerchantLens-Demo-Buyer"] = localBuyer;
+  }
+  if (body) headers["Content-Type"] = "application/json";
   const response = await fetch("/api/app/" + area + "/" + op, {
     method: body ? "POST" : "GET",
+    headers,
     ...(area === "phone" ? { credentials: "omit" } : {}),
     ...(body
       ? {
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         }
       : {}),
@@ -76,7 +86,8 @@ export function PhoneCheckout() {
   });
   const [token, preferences] = handoff.split("?");
   const [checkout, setCheckout] = useState(null);
-  const [message, setMessage] = useState(token ? "Opening checkout…" : "Scan a payment QR from the customer page.");
+  const [enteredAmount, setEnteredAmount] = useState("");
+  const [message, setMessage] = useState(token ? "Opening checkout…" : "On your laptop, click Confirm demo payment in the storefront. Scan the QR with your phone camera, or open the full checkout link shown below the QR.");
   const [busy, setBusy] = useState(false);
   const [consent, setConsent] = useState(() => new URLSearchParams(preferences).get("share") !== "0");
   const [showPayU, setShowPayU] = useState(false);
@@ -104,7 +115,7 @@ export function PhoneCheckout() {
     try {
       const result = await appRequest("phone", operation, { ...args, token });
       if (operation === "payu") submitPayUForm(result);
-      else if (result.confirmed || result.status === "captured") setCheckout({ ...checkout, confirmed: true });
+      else if (result.confirmed || result.status === "captured") setCheckout({ ...checkout, ...result, confirmed: true });
       else setMessage(result.status === "failed" ? "PayU reports that the payment failed. Ask for a fresh checkout." : "PayU has not confirmed this payment yet.");
     } catch (error) {
       setMessage(error.message);
@@ -114,7 +125,7 @@ export function PhoneCheckout() {
   }
 
   const cake = checkout?.kind === "cake";
-  const label = cake ? "Buy chocolate cake · ₹500" : "Top up demo wallet · ₹500";
+  const amount = cake || checkout?.confirmed ? checkout?.amount : walletAmount(enteredAmount);
   return <main className="exhibit product-app commerce" ref={root}>
     <section className="payment-app" aria-labelledby="phone-payment-title">
       <div className="payment-app-heading"><Smartphone aria-hidden="true" />
@@ -122,17 +133,18 @@ export function PhoneCheckout() {
       </div>
       {checkout && <>
         <dl>
-          <dt>Checkout</dt><dd>{cake ? "Chocolate cake" : "Demo wallet top-up"}</dd>
+          <dt>Checkout</dt><dd>{cake ? checkout.flavour || "Chocolate cake" : "Demo wallet top-up"}</dd>
           <dt>Payee</dt><dd>{checkout.payuMode ? "Shown by PayU" : "Sunrise Bakery"}</dd>
-          <dt>Amount</dt><dd className="payment-app-amount">₹500</dd>
+          {(cake || checkout.confirmed) && <><dt>Amount</dt><dd className="payment-app-amount">{checkoutMoney(amount)}</dd></>}
         </dl>
         <p>{checkout.payuMode === "live" ? "Live PayU payment" : checkout.payuMode === "sandbox" ? "PayU sandbox · Test payment" : "Simulated funds"}</p>
         {!checkout.confirmed && <>
+          {!cake && <label className="phone-amount">Amount in INR <input inputMode="decimal" maxLength={8} value={enteredAmount} onChange={(event) => setEnteredAmount(event.target.value)} placeholder="Enter amount" /></label>}
           <label className="consent"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /> Share checkout click with the analyst</label>
           {checkout.submittedToPayU && <button type="button" disabled={busy} onClick={() => runPhone("payu-status")}>Check PayU status</button>}
-          <button type="button" className="pay" data-ref={checkout.ref} data-payment={checkout.payment} disabled={busy}
-            onClick={() => checkout.payuMode ? setShowPayU(true) : runPhone("confirm", { observation: observed.current })}>
-            {label}
+          <button type="button" className="pay" data-ref={checkout.ref} data-payment={checkout.payment} data-checkout-kind={checkout.kind} data-checkout-amount={amount} disabled={busy || (!cake && !amount)}
+            onClick={() => checkout.payuMode ? setShowPayU(true) : runPhone("confirm", { observation: consent ? observed.current : null, ...(!cake ? { amount: enteredAmount } : {}) })}>
+            Pay
           </button>
           {showPayU && <PayUContact busy={busy} pay={(contact) => runPhone("payu", { ...contact, observation: observed.current })} />}
         </>}
@@ -215,15 +227,20 @@ function Login({ run, busy }) {
   );
 }
 function Customer({ state, run, busy }) {
-  const [mode, choose] = useState(checkoutLane === "wallet" ? "topup" : "cake"),
-    [method, setMethod] = useState("Delivery");
+  const storefrontKind = sportsbook || checkoutLane === "wallet" ? "topup" : "cake";
+  const singleStorefront = sportsbook || state.localDemo;
+  const [mode, choose] = useState(storefrontKind),
+    [method, setMethod] = useState("Delivery"),
+    [flavour, setFlavour] = useState("Chocolate cake"),
+    [sport, setSport] = useState("All");
   const storage = "checkout-" + state.user;
   const [intent, setIntent] = useState(() => {
     if (checkoutRef) return null;
     try {
       const pending = JSON.parse(sessionStorage.getItem(storage) || "null");
       return pending && typeof pending.ref === "string" && typeof pending.payment === "string" &&
-        ["cake", "topup"].includes(pending.kind) ? pending : null;
+        ["cake", "topup"].includes(pending.kind) &&
+        (!singleStorefront || pending.kind === storefrontKind) ? pending : null;
     } catch {
       return null;
     }
@@ -239,7 +256,7 @@ function Customer({ state, run, busy }) {
     if (consent)
       return observeCheckout(root.current, (x) => {
         observed.current = x;
-      });
+      }, { allowDraft: true });
   }, [consent]);
   useEffect(() => {
     if (!checkoutRef) return;
@@ -253,6 +270,7 @@ function Customer({ state, run, busy }) {
       const resumed = { ...pending, paymentApp: Boolean(pending.submittedToPayU) };
       sessionStorage.setItem(storage, JSON.stringify(resumed));
       choose(resumed.kind);
+      if (resumed.flavour) setFlavour(resumed.flavour);
       setIntent(resumed);
       setHandoff("");
     }).catch((error) => {
@@ -269,18 +287,24 @@ function Customer({ state, run, busy }) {
     setCheckoutNotice("Payment confirmed.");
   }, [intent, state.orders, state.ledger, storage]);
   const kind = intent?.kind || mode;
+  const selectedFlavour = intent?.flavour || flavour;
+  const cakeAmount = intent?.amount ?? cakePrices[selectedFlavour];
   const lane = kind === "topup" ? "wallet" : "cake";
   const paymentMode = intent?.payuMode || state.payuMode;
   const phoneOnly = intent?.payuMode && intent.payuMode !== state.payuMode;
   const currentQr = intent && phoneLink?.ref === intent.ref ? phoneLink : null;
-  const phoneCode = state.demoOrigin && !checkoutRef && !(phoneCheckout && checkoutLane) &&
-    <div className="customer-checkout-qr">
-      {currentQr && <CheckoutQr key={currentQr.url} url={currentQr.url} size={192} label="Scan to pay on your phone" />}
-      <button type="button" disabled={busy} onClick={() => run(makePhoneLink, "Payment QR ready")}>
-        {currentQr ? "Refresh payment QR" : "Show payment QR"}
-      </button>
-      {currentQr && <small>The code opens this checkout for 10 minutes.</small>}
-    </div>;
+  const phoneCode = currentQr && (
+    <div className="customer-checkout-qr" role="region" aria-label="Phone payment">
+      <CheckoutQr key={currentQr.url} url={currentQr.url} size={192} label="Scan to pay on your phone" />
+      <p>Scan with your phone camera, then confirm the simulated payment on your phone.</p>
+      <details>
+        <summary>Show checkout link</summary>
+        <input aria-label="Full phone checkout link" readOnly value={currentQr.url} onFocus={(event) => event.target.select()} />
+        <p>Copy the full link and open it on your phone.</p>
+      </details>
+      <small>The code expires after 10 minutes.</small>
+    </div>
+  );
   const saveIntent = (pending) => {
     if (pending) sessionStorage.setItem(storage, JSON.stringify(pending));
     else sessionStorage.removeItem(storage);
@@ -296,24 +320,19 @@ function Customer({ state, run, busy }) {
     clearCheckout();
   }
   async function openCheckout() {
-    if (!intent) {
-      setCheckoutNotice("");
-      const refs = await request("checkout", { kind, method });
-      saveIntent({ ...refs, kind, method });
-      return;
+    const click = consent ? observed.current : null;
+    if (!intent) setCheckoutNotice("");
+    const checkout = intent || await request("checkout", { kind, method, ...(kind === "cake" ? { flavour } : {}) });
+    const observation = click ? { ...click, ref: checkout.ref, payment: checkout.payment } : null;
+    saveIntent({ ...checkout, kind, method: checkout.method || method, flavour: checkout.flavour || flavour, paymentApp: true, observation });
+    if (checkout.payuMode && state.demoOrigin && !checkoutRef && !phoneCheckout) {
+      await makePhoneLink(checkout.ref);
     }
-    saveIntent({ ...intent, paymentApp: true, observation: observed.current });
   }
-  async function makePhoneLink() {
-    const { checkout, url } = await request("phone-link", {
-      ...(intent ? { ref: intent.ref } : { kind, method }),
-      shareEvidence: consent,
-    });
-    if (!intent) {
-      setCheckoutNotice("");
-      saveIntent(checkout);
-    }
-    setPhoneLink({ ref: checkout.ref, url });
+  async function makePhoneLink(ref) {
+    if (!state.demoOrigin) throw Error("Phone checkout is unavailable. Use the demo server with Wi-Fi sharing enabled.");
+    const { url } = await request("phone-link", { ref, shareEvidence: consent });
+    setPhoneLink({ ref, url });
   }
   async function confirmPayment() {
     await request("confirm", {
@@ -340,42 +359,62 @@ function Customer({ state, run, busy }) {
     return "PayU has not confirmed the payment yet. Check again before starting another checkout.";
   }
   return (
-    <div className="commerce" ref={root}>
+    <div className={`commerce ${sportsbook ? "touchline-store" : "bakery-store"}`} ref={root}>
       {handoff ? <section className="payment-app" aria-labelledby="phone-checkout-title">
         <h1 id="phone-checkout-title">Phone checkout</h1>
         <p role="status">{handoff}</p>
-        <a href={`/customer?checkout=${lane}`}>Back to shop</a>
+        <a href={sportsbook ? sportsbookPath : `/customer?checkout=${lane}${state.localDemo && state.user === "second-buyer" ? "&buyer=second-buyer" : ""}`}>Back to shop</a>
       </section> : intent?.paymentApp ? (
         <section className="payment-app" aria-labelledby="payment-app-title">
-          <div className="payment-app-heading"><Smartphone aria-hidden="true" /><h1 id="payment-app-title">{intent.payuMode ? "PayU Hosted Checkout" : "Demo payment app"}</h1></div>
+          <div className="payment-app-heading"><Smartphone aria-hidden="true" /><h1 id="payment-app-title">{intent.payuMode ? "PayU Hosted Checkout" : "Confirm demo payment"}</h1></div>
           <p>{intent.payuMode === "live" ? "Live payment · ₹500 will be charged" : intent.payuMode === "sandbox" ? "PayU sandbox · Test payment" : "Simulated UPI payment"}</p>
           <dl>
             {intent.payuMode ? <><dt>Order</dt><dd>Chocolate cake</dd></> : <>
               <dt>Paying to</dt><dd>Sunrise Bakery</dd>
               <dt>Merchant account</dt><dd>SRB-2041</dd>
             </>}
-            <dt>Amount</dt><dd className="payment-app-amount">₹500</dd>
+            <dt>Amount</dt><dd className="payment-app-amount">{kind === "cake" ? checkoutMoney(cakeAmount) : "Enter on phone"}</dd>
+            {intent.kind === "cake" && <><dt>Order</dt><dd>{intent.flavour || "Chocolate cake"}</dd></>}
           </dl>
+          {phoneCode}
           {intent.submittedToPayU && <button type="button" disabled={busy} onClick={() => run(checkPayUStatus)}>Check PayU status</button>}
           {intent.payuMode ? <details open={!intent.submittedToPayU} key={Boolean(intent.submittedToPayU)}>
             <summary>{intent.submittedToPayU ? "Reopen the same PayU checkout" : "Contact details for PayU"}</summary>
             <PayUContact busy={busy} pay={(contact) => run(() => openPayU(contact), "Opening PayU…")} />
           </details> : (
-          <button className="pay" disabled={busy} onClick={() => run(confirmPayment, "Payment confirmed")}>
+          !currentQr && <button className="pay" disabled={busy} onClick={() => state.localDemo && !checkoutRef && !phoneCheckout ? run(() => makePhoneLink(intent.ref)) : run(confirmPayment, "Payment confirmed")}>
             Confirm demo payment
           </button>
           )}
-          {!intent.submittedToPayU && <button type="button" disabled={busy} onClick={() => saveIntent({ ...intent, paymentApp: false, observation: null })}>
+          {!intent.submittedToPayU && <button type="button" disabled={busy} onClick={() => { setPhoneLink(null); saveIntent({ ...intent, paymentApp: false, observation: null }); }}>
             Back to checkout
           </button>}
-          {phoneCode}
         </section>
       ) : <>
-      <div className="section-head">
-        <h1>Sunrise Bakery</h1>
-        <span>{kind === "cake" && paymentMode === "live" ? "Live PayU checkout" : kind === "cake" && paymentMode === "sandbox" ? "PayU sandbox" : "Simulated funds"}</span>
-      </div>
-      <div className="shop">
+      {sportsbook ? (
+        <div className="sports-intro">
+          <p>TOUCHLINE · SPORTSBOOK DEMO</p>
+          <h1>The action starts here.</h1>
+          <span>Explore the matchday experience with simulated funds.</span>
+        </div>
+      ) : (
+        <div className="bakery-intro">
+          <p>BAKED WITH CARE · MADE FOR SHARING</p>
+          <h1>A little joy<br />in every slice.</h1>
+          <span>Thoughtfully made celebration cakes, ready for your next special moment.</span>
+          <a href="#shop-checkout">Explore our signature cake ↓</a>
+        </div>
+      )}
+      {sportsbook && <section className="sports-fixtures" aria-label="Illustrative match fixtures">
+        <div className="sports-fixtures-heading"><h2>Match centre</h2><span>Illustrative fixtures</span></div>
+        <div className="sports-tabs" aria-label="Filter sports">{["All", "Football", "Cricket", "Basketball", "Tennis"].map(name => <button type="button" key={name} aria-pressed={sport === name} onClick={() => setSport(name)}>{name}</button>)}</div>
+        {[["Football", "Harbour City", "Northbridge", "1.85", "3.40", "4.10"], ["Cricket", "River Royals", "Summit Kings", "1.91", "—", "1.91"], ["Basketball", "Metro Owls", "Coast Falcons", "1.58", "—", "2.35"], ["Tennis", "A. Morgan", "J. Carter", "1.72", "—", "2.10"]].filter(([category]) => sport === "All" || category === sport).map(([category, home, away, a, b, c]) => (
+          <article className="sports-fixture" key={category}><small>{category.toUpperCase()} · DEMO</small><strong>{home} <span>vs</span> {away}</strong><div><span>HOME <b>{a}</b></span><span>DRAW <b>{b}</b></span><span>AWAY <b>{c}</b></span></div></article>
+        ))}
+        <p>Fixture odds are illustrative. This demo supports wallet top-ups.</p>
+      </section>}
+      {!sportsbook && <><div className="store-section-heading"><div><p>THE CAKE COUNTER</p><h2>Choose your cake</h2></div><span>Freshly made to order</span></div><div className="cake-options">{Object.keys(cakePrices).map(name => <button type="button" key={name} disabled={!!intent || (!!paymentMode && name !== "Chocolate cake")} aria-pressed={flavour === name} onClick={() => setFlavour(name)}><span>{name}</span><strong>{checkoutMoney(cakePrices[name])}</strong></button>)}</div></>}
+      <div className="shop" id="shop-checkout">
         {kind === "cake" ? (
           <img
             className="product"
@@ -390,7 +429,7 @@ function Customer({ state, run, busy }) {
           </div>
         )}
         <div className="product-info">
-          <div className="tabs">
+          {!singleStorefront && <div className="tabs">
             {[
               ["cake", "Bakery"],
               ["topup", "Wallet"],
@@ -404,12 +443,13 @@ function Customer({ state, run, busy }) {
                 {title}
               </button>
             ))}
-          </div>
-          <h2>{kind === "cake" ? "Chocolate cake" : "Wallet top-up"}</h2>
+          </div>}
+          <div className="store-product-tag">{kind === "cake" ? "SUNRISE SIGNATURE" : "YOUR DEMO ACCOUNT"}</div>
+          <h2>{kind === "cake" ? selectedFlavour : "Top up your wallet"}</h2>
           <p>
             {kind === "cake"
-              ? "Chocolate sponge with cocoa frosting."
-              : "Add ₹500 to your simulated balance."}
+              ? ({ "Chocolate cake": "Chocolate sponge with smooth cocoa frosting.", "Vanilla berry cake": "Vanilla sponge with berry compote and cream.", "Pistachio cake": "Pistachio sponge with a smooth nutty cream.", "Red velvet cake": "Red velvet sponge with cream cheese frosting." }[selectedFlavour])
+              : "Add simulated funds to explore the demo checkout."}
           </p>
           {kind === "cake" && (
             <label>
@@ -438,30 +478,29 @@ function Customer({ state, run, busy }) {
           </small>
           <div className="total">
             <span>Total</span>
-            <b>₹500</b>
+            <b>{kind === "cake" ? checkoutMoney(cakeAmount) : "Enter on phone"}</b>
           </div>
           {checkoutNotice && <p role="status">{checkoutNotice}</p>}
           {phoneOnly && <p>Finish this PayU checkout using the phone QR.</p>}
-          <button
-            className="pay"
-            disabled={busy || phoneOnly}
-            data-ref={intent?.ref}
-            data-payment={intent?.payment}
-            onClick={() =>
-              run(openCheckout, intent ? "Payment app opened" : "Checkout ready")
-            }
-          >
-            {intent
-              ? kind === "cake"
-                ? "Buy chocolate cake · ₹500"
-                : "Top up demo wallet · ₹500"
-              : "Continue to checkout"}
-            <ArrowUpRight size={18} aria-hidden="true" />
-          </button>
-          {intent && !intent.submittedToPayU && <button type="button" disabled={busy} onClick={() => run(cancelCheckout, "Checkout cancelled")}>
-            Cancel checkout
-          </button>}
-          {phoneCode}
+          <div className="checkout-actions">
+            <button
+              className="pay"
+              disabled={busy || phoneOnly}
+              data-ref={intent?.ref}
+              data-payment={intent?.payment}
+              data-checkout-amount={kind === "cake" ? cakeAmount : undefined}
+              data-checkout-draft={!intent ? "" : undefined}
+              onClick={() => run(openCheckout, "Review your payment")}
+            >
+              {kind === "cake" ? `Buy ${selectedFlavour.toLowerCase()} · ${checkoutMoney(cakeAmount)}` : "Top up demo wallet"}
+              <ArrowUpRight size={18} aria-hidden="true" />
+            </button>
+            {intent && !intent.submittedToPayU && (
+              <button className="checkout-cancel" type="button" disabled={busy} onClick={() => run(cancelCheckout, "Checkout cancelled")}>
+                Cancel checkout
+              </button>
+            )}
+          </div>
         </div>
       </div>
       <section className="business-panel">
@@ -618,7 +657,7 @@ function Analyst({ cases, refresh, demoOrigin, analystDemoQr }) {
       </div>
       {analystDemoQr && <details className="phone-checkouts demo-payment-codes">
         <summary>Demo payment QR codes</summary>
-        <p>{demoOrigin.startsWith("https://") ? "Scan from a phone on Wi-Fi or mobile data." : "Scan from a phone on the same Wi-Fi."} Each code opens one simulated ₹500 checkout and expires after 10 minutes.</p>
+        <p>{demoOrigin.startsWith("https://") ? "Scan from a phone on Wi-Fi or mobile data." : "Scan from a phone on the same Wi-Fi."} Each code opens one simulated checkout and expires after 10 minutes.</p>
         <div className="phone-checkout-codes">
           <DemoPaymentQr kind="cake" label="User A · Cake" cases={cases} />
           <DemoPaymentQr kind="topup" label="User B · Wallet" cases={cases} />
@@ -771,13 +810,14 @@ export default function Product() {
     }
   }
   return (
-    <main className="exhibit product-app">
+    <main className={`exhibit product-app${sportsbook ? " sportsbook-app" : ""}`}>
       <header>
         <div className="product-brand">
-          <Network className="brand-icon" aria-hidden="true" />
-          <strong>MerchantLens</strong>
+          {sportsbook ? <Wallet className="brand-icon" aria-hidden="true" /> : <Network className="brand-icon" aria-hidden="true" />}
+          <strong>{sportsbook ? "Touchline Sportsbook" : state?.localDemo && role === "customer" ? "Sunrise Bakery" : "MerchantLens"}</strong>
         </div>
-        {!phoneCheckout && <nav className="role-nav" aria-label="Application areas">
+        {sportsbook && <span className="sportsbook-notice">Simulated funds</span>}
+        {!phoneCheckout && !sportsbook && <nav className="role-nav" aria-label="Application areas">
           {Object.entries(areas).map(([k, v]) => (
             <a
               key={k}
@@ -787,6 +827,8 @@ export default function Product() {
               {v}
             </a>
           ))}
+          {state?.localDemo && <a href={sportsbookPath}>Sportsbook demo</a>}
+          {state?.localDemo && role === "analyst" && <a href="/whatsapp-connect.html">WhatsApp</a>}
         </nav>}
       </header>
       <div className="session">
@@ -797,7 +839,13 @@ export default function Product() {
           {feed}
           {state ? " · " + state.user : ""}
         </span>
-        {state && (
+        {state?.localDemo && role === "customer" && !sportsbook && (
+          <nav className="role-nav" aria-label="Demo customer">
+            <a href="/customer" aria-current={state.user === "buyer" ? "page" : undefined}>Buyer A</a>
+            <a href={sportsbookPath}>Buyer B · Sportsbook</a>
+          </nav>
+        )}
+        {state && !state.localDemo && (
           <button
             onClick={() => run(() => request("logout", {}), "Signed out")}
           >
